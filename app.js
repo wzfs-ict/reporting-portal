@@ -761,7 +761,7 @@ function viewSetup(main) {
 
     <div class="card"><h3>2 · Import data</h3>
       <p class="small muted">Use the prepared Fall 2026 workbooks. Existing rows are updated by key, new rows added; nothing is deleted.</p>
-      <div class="grid">
+      <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(280px,1fr))">
         <label><span>Roster: <code>List_Students_Fall2026.xlsx</code> (${S.students.length} now)</span><input type="file" id="fStudents" accept=".xlsx,.xls,.csv"></label>
         <label><span>Subjects: <code>WZFS_Fall2026_UpperSchool_Subjects.xlsx</code> (${S.subjects.length} now)</span><input type="file" id="fSubjects" accept=".xlsx,.xls,.csv"></label>
         <label><span>Award catalogue: <code>WZFS_Fall2026_Awards_Catalogue.xlsx</code> (${S.catalogue.length} now)</span><input type="file" id="fCatalogue" accept=".xlsx,.xls,.csv"></label>
