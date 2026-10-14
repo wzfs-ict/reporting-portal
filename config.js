@@ -12,7 +12,7 @@ window.APP_CONFIG = {
 
   // Microsoft Entra app registration (README step 2)
   tenantId: "59aaa89c-ebfe-417a-bcdf-21065b509cf4",
-  clientId: "PASTE-APPLICATION-CLIENT-ID-HERE",
+  clientId: "922cf5c9-1187-420a-af78-ec81f5f58227",   // "WZFS Reporting Portal"
 
   // The private SharePoint site that stores the data (README step 1)
   siteHostname: "weihaizhongshi.sharepoint.com",
