@@ -790,7 +790,7 @@ function viewSetup(main) {
         <li><b>Awards, Advisor Comments, Marks G…</b>: staff group can <b>Contribute</b>, with <b>item-level privacy</b> (each person reads and edits only what they created).</li>
         <li><b>Marks G…</b>: that grade's advisor also gets <b>Design</b>, so they can see and correct the whole grade.</li>
       </ul>
-      <label><span>Staff who enter marks or awards, one school email per line (advisors are added automatically)</span><textarea id="staffEmails" rows="6" placeholder="name@zhongshischool.org"></textarea></label>
+      <label><span>Staff who enter marks or awards, one school email per line (advisors are added automatically)</span><textarea id="staffEmails" rows="6" placeholder="name@zhongshischool.org">${esc((p.staff || []).join("\n"))}</textarea></label>
       <p><button class="btn primary" id="applyPerms">Apply permissions</button></p>
       <p class="small muted">Needs the SharePoint <code>AllSites.FullControl</code> delegated permission (admin consent) on the app registration. If it fails, do it by hand with the links below.</p>
       <pre id="permLog" class="small" style="white-space:pre-wrap"></pre>
