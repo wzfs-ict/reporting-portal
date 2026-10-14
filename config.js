@@ -36,7 +36,7 @@ window.APP_CONFIG = {
   semester: "Fall",               // Fall | Spring
   semesters: ["Fall", "Spring"],
 
-  grades: ["G6", "G7", "G8", "G9-1", "G9-2", "G10", "G11", "G12", "ZSA"],
+  grades: ["G1", "G2", "G3", "G4", "G5", "G6", "G7", "G8", "G9-1", "G9-2", "G10", "G11", "G12", "ZSA"],
 
   // ── People ───────────────────────────────────────────────
   // Accounts verified against AllUsersM365.csv (Oct 2026). Some differ from the
@@ -50,8 +50,13 @@ window.APP_CONFIG = {
     "mkkim@zhongshischool.org",        // Andy Kim, VP Communications
     "rrussell@zhongshischool.org",     // Roger Russell
   ],
-  // Upper School teaching staff — pre-fills Setup → Permissions (the "Reporting Staff" group).
+  // Teaching staff — pre-fills Setup → Permissions (the "Reporting Staff" group).
   staff: [
+    // Primary School
+    "xtobias@zhongshischool.org", "schoe@zhongshischool.org", "smuivah@zhongshischool.org",
+    "msiao@zhongshischool.org", "mmabini@zhongshischool.org", "osubira@zhongshischool.org",
+    "lrodriguez@zhongshischool.org", "mgangaramani@zhongshischool.org", "bbirkenstock@zhongshischool.org",
+    // Upper School
     "abagapuro@zhongshischool.org", "b_reacher@zhongshischool.org", "jpatole@zhongshischool.org",
     "jpaa@zhongshischool.org", "ayu@zhongshischool.org", "agong@zhongshischool.org",
     "wli@zhongshischool.org", "gliu@zhongshischool.org", "mparker@zhongshischool.org",
@@ -68,7 +73,12 @@ window.APP_CONFIG = {
   // comma-separated — everyone listed can see and correct the whole grade.
   // Blank email = not yet confirmed. Edit on the Setup tab.
   advisors: {
-    "G6":   { name: "Ms. Karen Bayangan",   co: "Mr. Stephen Feng", email: "kbayangan@zhongshischool.org, sfeng@zhongshischool.org" },
+    "G1":   { name: "Mrs. Xochitl Tobias",  co: "Ms. So Yeong Choe, Mrs. Grace Liu", email: "xtobias@zhongshischool.org, schoe@zhongshischool.org, gliu@zhongshischool.org" },
+    "G2":   { name: "Ms. Singchon Muivah",  co: "Mrs. Alisa Wang",  email: "smuivah@zhongshischool.org, awang@zhongshischool.org" },
+    "G3":   { name: "Mrs. Mailyn Siao",     co: "Mrs. Sasha Liu",   email: "msiao@zhongshischool.org, sliu@zhongshischool.org" },
+    "G4":   { name: "Mrs. Margaret Mabini", co: "Mrs. Chloe Guo",   email: "mmabini@zhongshischool.org, cguo@zhongshischool.org" },
+    "G5":   { name: "Mrs. Ola Fraser",      co: "Mr. Luis Rodriguez", email: "osubira@zhongshischool.org, lrodriguez@zhongshischool.org" },
+    "G6":  { name: "Ms. Karen Bayangan",   co: "Mr. Stephen Feng", email: "kbayangan@zhongshischool.org, sfeng@zhongshischool.org" },
     "G7":   { name: "Mrs. Prapti Patole",   co: "Mr. Richard Wang", email: "ppatole@zhongshischool.org, rqi@zhongshischool.org" },
     "G8":   { name: "Mrs. Bijily Reacher",  co: "Mrs. Judy Wang",   email: "b_reacher@zhongshischool.org, jwang@zhongshischool.org" },
     "G9-1": { name: "Mrs. Keren Joshua",    co: "Mr. Glen Joshua",  email: "kjoshua@zhongshischool.org, glenj@zhongshischool.org, gjoshua@zhongshischool.org" },
