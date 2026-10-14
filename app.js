@@ -834,6 +834,8 @@ function viewSetup(main) {
       CertificateName: col(r, "Certificate_Name"), Grade: col(r, "Grade"), Email: lc(col(r, "Email")), Department: col(r, "Department"),
       Joined: col(r, "Joined"), Status: col(r, "Status") === "Withdrawn" ? "Withdrawn" : "Active" })).filter((r) => r.Title && r.FullName);
     const unknownGrades = [...new Set(recs.map((r) => r.Grade).filter((g) => !P().grades.includes(g)))];
+    const dupes = [...new Set(recs.map((r) => r.Title).filter((id, i, a) => a.indexOf(id) !== i))];
+    if (dupes.length) throw new Error(`The same Student ID appears more than once: ${dupes.map((id) => `${id} (${recs.filter((r) => r.Title === id).map((r) => r.Grade).join(" and ")})`).join(", ")}. Fix the workbook so each bobae has one row, then import again. Nothing was imported.`);
     const { sent, failed } = await upsert(L.students, recs, (f) => f.Title, S.students);
     return `Roster: ${recs.length} students read, ${sent} added/updated, ${failed.length} failed.` + (unknownGrades.length ? ` Note: grades not in the app's grade list: ${unknownGrades.join(", ")}.` : "");
   });
