@@ -47,17 +47,20 @@ window.APP_CONFIG = {
     "rrussell@zhongshischool.org",
     "mkkim@zhongshischool.org",
   ],
-  // Grade → class advisor. Blank = not yet confirmed. Edit on the Setup tab.
+  // Grade → class advisor (from AAO "26 Fall Bobae's Picture List", 15 Sept 2026).
+  // `name` prints on the report card. `email` may list the advisor AND co-advisor,
+  // comma-separated — everyone listed can see and correct the whole grade.
+  // Blank email = not yet confirmed. Edit on the Setup tab.
   advisors: {
-    "G6":   { email: "", name: "Mrs. Prapti Patole" },
-    "G7":   { email: "glenj@zhongshischool.org", name: "Mr. Glen Joshua" },
-    "G8":   { email: "b_reacher@zhongshischool.org", name: "Mrs. Bijily Reacher" },
-    "G9-1": { email: "", name: "Mrs. Keren Joshua" },
-    "G9-2": { email: "", name: "Mrs. Keren Joshua" },
-    "G10":  { email: "jpatole@zhongshischool.org", name: "Mr. Jayesh Patole" },
-    "G11":  { email: "", name: "Mr. Arnold Bagapuro" },
-    "G12":  { email: "babuan@zhongshischool.org", name: "Ms. Beverly Abuan" },
-    "ZSA":  { email: "", name: "Mrs. May Cho" },
+    "G6":   { email: "", name: "Ms. Karen Bayangan", co: "Mr. Stephen Feng" },
+    "G7":   { email: "", name: "Mrs. Prapti Patole", co: "Mr. Richard Wang" },
+    "G8":   { email: "b_reacher@zhongshischool.org", name: "Mrs. Bijily Reacher", co: "Mrs. Judy Wang" },
+    "G9-1": { email: "glenj@zhongshischool.org", name: "Mrs. Keren Joshua", co: "Mr. Glen Joshua" },
+    "G9-2": { email: "", name: "Mr. Arnold Bagapuro", co: "Mr. Austin Yu" },
+    "G10":  { email: "", name: "Mr. Michael Bardinas", co: "Mrs. Winnie Li" },
+    "G11":  { email: "jpatole@zhongshischool.org", name: "Mr. Jayesh Patole", co: "Mrs. Summer Xia" },
+    "G12":  { email: "babuan@zhongshischool.org", name: "Ms. Beverly Abuan", co: "Mrs. Ruth Xia" },
+    "ZSA":  { email: "", name: "Mrs. May Cho", co: "" },
   },
 
   // ── Scales ───────────────────────────────────────────────

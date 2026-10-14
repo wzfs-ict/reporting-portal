@@ -146,7 +146,9 @@ const studentById = (id) => S.students.find((s) => s.f.Title === id);
 // ── Roles (layout only — real access comes from SharePoint) ──
 const isAdmin = () => P().admins.map(lc).includes(S.me);
 const isLeader = () => isAdmin() || P().leadership.map(lc).includes(S.me);
-const advisorGrades = () => Object.entries(P().advisors || {}).filter(([, a]) => a && lc(a.email) === S.me).map(([g]) => g);
+const emailsOf = (s) => String(s || "").split(/[\s,;]+/).map(lc).filter((e) => e.includes("@"));
+const advisorEmails = (g) => emailsOf(P().advisors[g] && P().advisors[g].email);   // advisor + co-advisor
+const advisorGrades = () => P().grades.filter((g) => advisorEmails(g).includes(S.me));
 const canAdvise = (g) => isAdmin() || advisorGrades().includes(g);
 const advisorName = (g) => (P().advisors[g] && P().advisors[g].name) || "";
 
@@ -775,8 +777,8 @@ function viewSetup(main) {
         <label class="wide"><span>Leadership (read-only across grades), one email per line. Also add them as Owners of the SharePoint site.</span><textarea id="sLead" rows="3">${esc(p.leadership.join("\n"))}</textarea></label>
       </div>
       <h3 style="margin-top:14px">Class advisors</h3>
-      <div class="table-wrap"><table><thead><tr><th>Grade</th><th>Name (prints on the card)</th><th>School email</th></tr></thead><tbody>
-        ${p.grades.map((g) => `<tr><td>${esc(g)}</td><td><input class="advName" data-g="${esc(g)}" value="${esc(p.advisors[g]?.name || "")}"></td><td><input class="advEmail" data-g="${esc(g)}" value="${esc(p.advisors[g]?.email || "")}" placeholder="name@zhongshischool.org"></td></tr>`).join("")}
+      <div class="table-wrap"><table><thead><tr><th>Grade</th><th>Advisor (prints on the card)</th><th>Co-advisor</th><th>School emails of advisor and co-advisor, comma-separated</th></tr></thead><tbody>
+        ${p.grades.map((g) => `<tr><td>${esc(g)}</td><td><input class="advName" data-g="${esc(g)}" value="${esc(p.advisors[g]?.name || "")}"></td><td><input class="advCo" data-g="${esc(g)}" value="${esc(p.advisors[g]?.co || "")}"></td><td><input class="advEmail" data-g="${esc(g)}" value="${esc(p.advisors[g]?.email || "")}" placeholder="advisor@zhongshischool.org, coadvisor@zhongshischool.org"></td></tr>`).join("")}
       </tbody></table></div>
       <button class="btn primary" id="saveSettings">Save term and people</button>
     </div>
@@ -795,7 +797,7 @@ function viewSetup(main) {
       <details><summary class="small">Manual links</summary>
         <div class="table-wrap" style="margin-top:8px"><table><thead><tr><th>List</th><th>Should be</th><th></th></tr></thead><tbody>
         ${specs.filter((s) => S.lists[s.name]).map((s) => { const id = S.lists[s.name].id; return `<tr><td>${esc(s.name)}</td>
-          <td class="small">${s.kind === "read" ? "Staff: Read" : `Staff: Contribute + item-level "Read/edit items created by the user"${s.kind === "marks" ? `; advisor (${esc(p.advisors[s.grade]?.email || "?")}): Design` : ""}`}</td>
+          <td class="small">${s.kind === "read" ? "Staff: Read" : `Staff: Contribute + item-level "Read/edit items created by the user"${s.kind === "marks" ? `; advisors (${esc(advisorEmails(s.grade).join(", ") || "?")}): Design` : ""}`}</td>
           <td class="small"><a target="_blank" rel="noopener" href="${esc(S.siteUrl)}/_layouts/15/user.aspx?obj=%7B${id}%7D,list&List=%7B${id}%7D">Permissions</a>
           ${s.kind !== "read" ? ` · <a target="_blank" rel="noopener" href="${esc(S.siteUrl)}/_layouts/15/advsetng.aspx?List=%7B${id}%7D">Advanced settings</a>` : ""}</td></tr>`; }).join("")}
         </tbody></table></div>
@@ -858,7 +860,7 @@ function viewSetup(main) {
   $("#saveSettings").onclick = async () => {
     const lines = (id) => $(id).value.split(/[\s,;]+/).map(lc).filter(Boolean);
     const advisors = {};
-    for (const g of P().grades) advisors[g] = { name: $(`.advName[data-g="${g}"]`).value.trim(), email: lc($(`.advEmail[data-g="${g}"]`).value) };
+    for (const g of P().grades) advisors[g] = { name: $(`.advName[data-g="${g}"]`).value.trim(), co: $(`.advCo[data-g="${g}"]`).value.trim(), email: emailsOf($(`.advEmail[data-g="${g}"]`).value).join(", ") };
     const json = { academicYear: $("#sYear").value.trim(), semester: $("#sSem").value, admins: lines("#sAdmins"), leadership: lines("#sLead"), advisors };
     if (!json.admins.includes(S.me) && !confirm("You are removing yourself from the admins. Continue?")) return;
     try {
@@ -885,8 +887,7 @@ async function applyPermissions(specs, staffEmails, out) {
   const visitors = await sp("GET", "web/associatedvisitorgroup?$select=Id").catch(() => null);
   let group = await sp("GET", `web/sitegroups/getbyname('${encodeURIComponent(C.staffGroup)}')?$select=Id`).catch(() => null);
   if (!group) { group = await sp("POST", "web/sitegroups", { __metadata: { type: "SP.Group" }, Title: C.staffGroup, Description: "Teachers who enter marks and awards in WZFS Reporting" }); out(`Created group ${C.staffGroup}.`); }
-  const advisorEmails = Object.values(P().advisors).map((a) => lc(a.email)).filter(Boolean);
-  const everyone = [...new Set([...staffEmails, ...advisorEmails])];
+  const everyone = [...new Set([...staffEmails, ...P().grades.flatMap(advisorEmails)])];
   for (const e of everyone) {
     try { await sp("POST", `web/sitegroups(${group.Id})/users`, { __metadata: { type: "SP.User" }, LoginName: claims(e) }); }
     catch (err) { out(`  ! Could not add ${e}: ${err.message}`); }
@@ -903,12 +904,12 @@ async function applyPermissions(specs, staffEmails, out) {
     await sp("POST", base, props, { "X-HTTP-Method": "MERGE", "IF-MATCH": "*" });
     let extra = "";
     if (s.kind === "marks") {
-      const adv = lc(P().advisors[s.grade]?.email);
-      if (adv) {
+      const advs = advisorEmails(s.grade);
+      for (const adv of advs) {
         const u = await sp("POST", "web/ensureuser", { logonName: claims(adv) });
         await sp("POST", `${base}/roleassignments/addroleassignment(principalid=${u.Id},roledefid=${role(4)})`);
-        extra = ` · advisor ${adv}: Design`;
-      } else extra = " · no advisor set";
+      }
+      extra = advs.length ? ` · advisors ${advs.join(", ")}: Design` : " · no advisor email set";
     }
     out(`✓ ${s.name}: Owners Full Control · ${C.staffGroup} ${s.kind === "read" ? "Read" : "Contribute, item-level"}${extra}`);
   }
