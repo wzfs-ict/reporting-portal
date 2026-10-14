@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WZFS Reporting</title>
+<link rel="icon" type="image/png" href="logo.png">
+<style>
+  :root {
+    --bg: #f5f6f8; --surface: #ffffff; --surface-2: #f0f2f5; --border: #dde1e6;
+    --text: #1d2430; --muted: #5d6675; --accent: #1e2a78; --accent-ink: #ffffff;
+    --brand: #0b1046; /* WZFS navy, from the school crest */
+    --accent-soft: #e6eef6; --ok: #1d7a46; --ok-soft: #e3f3ea; --warn: #9a5b00; --warn-soft: #fbf0dc;
+    --bad: #b3261e; --bad-soft: #fbe7e5; --radius: 10px;
+    --font: "Segoe UI", system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14171c; --surface: #1c2027; --surface-2: #232831; --border: #343a45;
+      --text: #e6e9ee; --muted: #a0a8b5; --accent: #9aa6e8; --accent-ink: #0b1046;
+      --brand: #0b1046;
+      --accent-soft: #1e2d3d; --ok: #6fcf97; --ok-soft: #173326; --warn: #f2c26b; --warn-soft: #3a2d14;
+      --bad: #f28b82; --bad-soft: #3d1c1a;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 var(--font); }
+  a { color: var(--accent); }
+  header.top { background: var(--brand); color: #fff; }
+  .top-inner { max-width: 1240px; margin: 0 auto; padding: 12px 16px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  .brand { font-weight: 650; font-size: 18px; margin-right: auto; display: flex; align-items: center; gap: 12px; color: #fff; }
+  .brand .logo { width: 46px; height: 46px; border-radius: 50%; background: #fff; flex: none; }
+  .brand small { display: block; font-weight: 400; color: rgba(255,255,255,.75); font-size: 12.5px; letter-spacing: .02em; }
+  .who { color: rgba(255,255,255,.85); font-size: 13.5px; }
+  header.top .btn { background: transparent; color: #fff; border-color: rgba(255,255,255,.45); }
+  header.top .btn:hover { background: rgba(255,255,255,.12); }
+  nav.tabs { max-width: 1240px; margin: 0 auto; padding: 0 16px; display: flex; gap: 4px; overflow-x: auto; }
+  nav.tabs button { border: 0; background: none; padding: 10px 14px; font: inherit; color: rgba(255,255,255,.7); border-bottom: 3px solid transparent; cursor: pointer; white-space: nowrap; }
+  nav.tabs button:hover { color: #fff; }
+  nav.tabs button[aria-current="page"] { color: #fff; border-bottom-color: #fff; font-weight: 600; }
+  main { max-width: 1240px; margin: 0 auto; padding: 20px 16px 60px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  h2 { font-size: 17px; margin: 24px 0 8px; }
+  h3 { font-size: 15px; margin: 0 0 6px; }
+  .lede { color: var(--muted); margin: 0 0 18px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 14px; }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; }
+  .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
+  .grid .wide { grid-column: 1 / -1; }
+  label { display: block; font-size: 13px; color: var(--muted); }
+  label > span { display: block; margin-bottom: 3px; }
+  input, select, textarea { width: 100%; font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 7px; padding: 7px 9px; }
+  input[type=checkbox] { width: auto; }
+  textarea { min-height: 38px; resize: vertical; }
+  input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  input:disabled, select:disabled, textarea:disabled { background: var(--surface-2); color: var(--muted); }
+  input.invalid { border-color: var(--bad); background: var(--bad-soft); }
+  .btn { display: inline-flex; align-items: center; gap: 6px; font: inherit; font-size: 14px; padding: 8px 14px; border-radius: 7px; border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer; text-decoration: none; }
+  .btn:hover { background: var(--surface-2); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  .btn.primary:hover { filter: brightness(1.08); }
+  .btn.danger { color: var(--bad); }
+  .btn.small { padding: 4px 9px; font-size: 13px; }
+  .btn[disabled] { opacity: .55; cursor: default; }
+  .stats { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); margin-bottom: 16px; }
+  .stat { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; }
+  .stat .k { font-size: 12.5px; color: var(--muted); }
+  .stat .v { font-size: 22px; font-weight: 650; font-variant-numeric: tabular-nums; }
+  .table-wrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 16px; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  th { background: var(--surface-2); font-weight: 600; font-size: 12.5px; color: var(--muted); white-space: nowrap; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  td.center, th.center { text-align: center; }
+  .badge { display: inline-block; font-size: 12px; padding: 1px 8px; border-radius: 99px; background: var(--surface-2); color: var(--muted); white-space: nowrap; }
+  .badge.ok { background: var(--ok-soft); color: var(--ok); }
+  .badge.warn { background: var(--warn-soft); color: var(--warn); }
+  .badge.bad { background: var(--bad-soft); color: var(--bad); }
+  .badge.info { background: var(--accent-soft); color: var(--accent); }
+  .muted { color: var(--muted); }
+  .small { font-size: 13px; }
+  .notice { padding: 10px 14px; border-radius: var(--radius); margin-bottom: 14px; border: 1px solid var(--border); background: var(--surface); }
+  .notice.error { background: var(--bad-soft); color: var(--bad); border-color: transparent; }
+  .notice.ok { background: var(--ok-soft); color: var(--ok); border-color: transparent; }
+  .notice.warn { background: var(--warn-soft); color: var(--warn); border-color: transparent; }
+  .center { text-align: center; padding: 60px 16px; }
+  .sticky-actions { position: sticky; bottom: 0; background: var(--bg); padding: 12px 0; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; border-top: 1px solid var(--border); z-index: 2; }
+  ol.steps li { margin-bottom: 10px; }
+  code { background: var(--surface-2); padding: 1px 5px; border-radius: 4px; font-size: 13px; }
+  .site-footer { max-width: 1240px; margin: 0 auto; padding: 16px 16px 28px; text-align: center; font-size: 12.5px; color: var(--muted); border-top: 1px solid var(--border); }
+
+  /* My classes */
+  .class-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+  .class-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; cursor: pointer; text-align: left; font: inherit; color: inherit; }
+  .class-card:hover { border-color: var(--accent); }
+  .class-card .t { font-weight: 650; }
+  .bar { height: 6px; border-radius: 99px; background: var(--surface-2); overflow: hidden; margin: 10px 0 6px; }
+  .bar > i { display: block; height: 100%; background: var(--accent); }
+
+  /* Marks entry grid */
+  table.entry td { padding: 5px 8px; }
+  table.entry input.score { width: 84px; text-align: right; }
+  table.entry select.beh { width: 190px; }
+  table.entry textarea { min-height: 34px; height: 34px; min-width: 260px; }
+  .rowstate { font-size: 12px; color: var(--muted); white-space: nowrap; min-width: 56px; }
+  .rowstate.err { color: var(--bad); }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: var(--muted); margin-bottom: 10px; }
+
+  /* Advisor matrix */
+  table.matrix th.subj { writing-mode: vertical-rl; transform: rotate(180deg); white-space: nowrap; height: 150px; vertical-align: bottom; padding: 8px 4px; }
+  table.matrix td.cell { text-align: center; font-variant-numeric: tabular-nums; white-space: nowrap; font-size: 13px; }
+  table.matrix td.cell.missing { background: var(--warn-soft); color: var(--warn); }
+  table.matrix td.sticky, table.matrix th.sticky { position: sticky; left: 0; background: var(--surface); z-index: 1; }
+
+  /* Awards — student cards */
+  .student-grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
+  .stu { position: relative; background: var(--surface); border: 2px solid var(--border); border-radius: var(--radius); padding: 10px 12px; cursor: pointer; text-align: left; font: inherit; color: inherit; }
+  .stu:hover { border-color: var(--accent); }
+  .stu[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+  .stu .called { font-weight: 650; font-size: 16px; }
+  .stu .full, .stu .id { font-size: 12.5px; color: var(--muted); }
+  .stu .count { position: absolute; top: 8px; right: 8px; }
+  .stu .tick { position: absolute; bottom: 8px; right: 10px; font-weight: 700; color: var(--accent); }
+  .award-panel { position: sticky; top: 8px; }
+  .two-col { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr) 340px; align-items: start; }
+  @media (max-width: 900px) { .two-col { grid-template-columns: 1fr; } .award-panel { position: static; } }
+
+  .pde-hero { text-align: center; padding: 40px 20px; }
+  .pde-hero .big { font-size: 40px; }
+  @media (max-width: 640px) { th, td { padding: 6px 7px; } .stat .v { font-size: 19px; } }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="top-inner">
+    <div class="brand"><img class="logo" src="logo.png" alt="WZFS crest"><div><span id="appName">WZFS Reporting</span><small id="schoolName"></small></div></div>
+    <div class="who" id="who"></div>
+    <div id="authBtn"></div>
+  </div>
+  <nav class="tabs" id="tabs"></nav>
+</header>
+<main id="main"><div class="center muted">Loading…</div></main>
+<footer class="site-footer" id="footer"></footer>
+
+<!-- Libraries are kept in /vendor (pinned versions) so nothing loads from an overseas CDN. -->
+<script src="vendor/msal-browser-3.27.0.min.js"></script>
+<script src="vendor/xlsx-0.18.5.full.min.js"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
