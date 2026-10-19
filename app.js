@@ -17,7 +17,7 @@ const S = {
   students: [], subjects: [], catalogue: [], settingsItem: null, settings: {},
   marks: {}, comments: [], awards: [],
   tab: "classes", cls: null, back: "classes",
-  advGrade: "", awGrade: "", awSel: new Set(), awSearch: "", awAll: false,
+  advGrade: "", ptcStudent: "", awGrade: "", awSel: new Set(), awSearch: "", awAll: false,
   loadErr: null,
 };
 
@@ -30,6 +30,11 @@ const blank = (v) => v === null || v === undefined || v === "";
 const P = () => ({ ...C, ...S.settings });               // config merged with saved Settings
 const term = () => ({ Semester: P().semester, AcademicYear: P().academicYear });
 const inTerm = (f) => f.Semester === P().semester && f.AcademicYear === P().academicYear;
+// Marks and advisor comments also belong to a reporting period (Midterm / Final). Awards don't.
+const termP = () => ({ ...term(), Period: P().period });
+const inPeriod = (f) => inTerm(f) && (f.Period || "Final") === P().period;
+const isMidterm = () => P().period === "Midterm";
+const termLabel = () => `${P().semester} ${P().academicYear} · ${P().period}`;
 const marksListName = (g) => L.marksPrefix + g;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 function notice(kind, html) { return `<div class="notice ${kind}">${html}</div>`; }
@@ -131,14 +136,16 @@ async function loadAll() {
   const [students, subjects, catalogue] = await Promise.all([readList(L.students), readList(L.subjects), readList(L.catalogue)]);
   S.students = students.sort((a, b) => (a.f.FullName || "").localeCompare(b.f.FullName || ""));
   S.subjects = subjects.sort((a, b) => (a.f.SortOrder ?? 999) - (b.f.SortOrder ?? 999) || (a.f.Title || "").localeCompare(b.f.Title || ""));
-  S.catalogue = catalogue.filter((x) => x.f.Active !== false).sort((a, b) => (a.f.SortOrder ?? 999) - (b.f.SortOrder ?? 999));
+  S.catalogueAll = catalogue.sort((a, b) => (a.f.SortOrder ?? 999) - (b.f.SortOrder ?? 999));
+  // Teachers see active awards for this semester (Season blank or "Both" = all year).
+  S.catalogue = S.catalogueAll.filter((x) => x.f.Active !== false && (!x.f.Season || x.f.Season === "Both" || x.f.Season === P().semester));
   await Promise.all([loadMarks(), loadComments(), loadAwards()]);
 }
 async function loadMarks(grade) {
   const grades = grade ? [grade] : P().grades;
-  await Promise.all(grades.map(async (g) => { S.marks[g] = (await readList(marksListName(g))).filter((x) => inTerm(x.f)); }));
+  await Promise.all(grades.map(async (g) => { S.marks[g] = (await readList(marksListName(g))).filter((x) => inPeriod(x.f)); }));
 }
-async function loadComments() { S.comments = (await readList(L.comments)).filter((x) => inTerm(x.f)); }
+async function loadComments() { S.comments = (await readList(L.comments)).filter((x) => inPeriod(x.f)); }
 async function loadAwards() { S.awards = (await readList(L.awards)).filter((x) => inTerm(x.f)); }
 const rosterFor = (g) => S.students.filter((s) => s.f.Grade === g && s.f.Status !== "Withdrawn");
 const studentById = (id) => S.students.find((s) => s.f.Title === id);
@@ -169,7 +176,7 @@ function renderShell() {
   $("#authBtn").innerHTML = `<button class="btn small" id="signOut">Sign out</button>`;
   $("#signOut").onclick = () => pca.logoutRedirect({ account });
   if (S.loadErr) { $("#tabs").innerHTML = ""; return; }
-  const active = { newclass: "classes", entry: S.back }[S.tab] || S.tab;
+  const active = { newclass: "classes", entry: S.back, ptc: "advisor" }[S.tab] || S.tab;
   $("#tabs").innerHTML = tabsFor().map(([k, n]) => `<button data-tab="${k}" ${k === active ? 'aria-current="page"' : ""}>${n}</button>`).join("");
   $$("#tabs button").forEach((b) => (b.onclick = () => go(b.dataset.tab)));
 }
@@ -179,7 +186,7 @@ function render() {
   const main = $("#main");
   if (!account) return signInScreen(main);
   if (S.loadErr) return errorScreen(main);
-  const views = { classes: viewClasses, newclass: viewNewClass, entry: viewEntry, advisor: viewAdvisor, awards: viewAwards, export: viewExport, setup: viewSetup, pde: viewPde, help: viewHelp };
+  const views = { classes: viewClasses, newclass: viewNewClass, entry: viewEntry, advisor: viewAdvisor, ptc: viewPtc, awards: viewAwards, export: viewExport, setup: viewSetup, pde: viewPde, help: viewHelp };
   (views[S.tab] || viewClasses)(main);
 }
 
@@ -242,7 +249,7 @@ function viewClasses(main) {
   const hasLists = P().grades.some((g) => S.lists[marksListName(g)]);
   main.innerHTML = `
     <h1>My classes</h1>
-    <p class="lede">${esc(P().semester)} semester ${esc(P().academicYear)}. Each class is one grade and one subject you teach.</p>
+    <p class="lede"><span class="badge info">${esc(termLabel())}</span> Each class is one grade and one subject you teach.${isMidterm() ? " Mid-term marks go to your grade advisors for the parent-teacher conferences." : ""}</p>
     <div id="flash"></div>
     ${!hasLists ? notice("warn", isAdmin() ? `The SharePoint lists haven't been created yet. Go to <a href="#" id="toSetup">Setup</a>.` : "The reporting lists aren't set up yet. Please check with the ICT coordinator.") : ""}
     <div class="class-grid">
@@ -326,7 +333,7 @@ async function createRows(g, subject, type, level, ids) {
     const s = studentById(id).f;
     return { method: "POST", url, body: { fields: {
       Title: `${s.CalledName || s.FullName} – ${subject}`, StudentID: id, FullName: s.FullName, CalledName: s.CalledName || "",
-      Subject: subject, SubjectType: type || "I", ClassLevel: level, ...term(), Submitted: false, TeacherName: S.meName } } };
+      Subject: subject, SubjectType: type || "I", ClassLevel: level, ...termP(), Submitted: false, Concern: false, TeacherName: S.meName } } };
   });
   const res = await batch(reqs);
   const bad = batchFailures(res);
@@ -349,13 +356,13 @@ function viewEntry(main) {
   main.innerHTML = `
     <p><a href="#" id="back">← Back</a></p>
     <h1>${esc(grade)} · ${esc(subjectDisplay({ Subject: subject, ClassLevel: level }))}</h1>
-    <p class="lede">${mine ? "Your class" : "Teacher: " + esc(teacher)} · ${rows.length} students · ${submitted ? `<span class="badge ok">Submitted</span>` : `<span class="badge warn">Not submitted</span>`}</p>
+    <p class="lede"><span class="badge info">${esc(termLabel())}</span> ${mine ? "Your class" : "Teacher: " + esc(teacher)} · ${rows.length} students · ${submitted ? `<span class="badge ok">Submitted</span>` : `<span class="badge warn">Not submitted</span>`}</p>
     <div id="flash"></div>
     ${submitted && mine && !isAdmin() ? notice("ok", "Submitted to the advisor. To change something, ask your grade advisor to reopen it.") : ""}
     ${supervisor ? notice("warn", "You are editing another teacher's class as advisor. Changes are logged in SharePoint version history.") : ""}
-    <div class="legend"><b>Behaviour:</b> ${scale.map((b) => `<span>${b.value} = ${esc(b.label)}</span>`).join("")}<span>· Score 0–100</span></div>
+    <div class="legend"><b>Behaviour:</b> ${scale.map((b) => `<span>${b.value} = ${esc(b.label)}</span>`).join("")}<span>· Score 0–100</span><span>· ⚑ = the advisor should raise this at the parent meeting</span></div>
     <div class="table-wrap"><table class="entry">
-      <thead><tr><th>#</th><th>Student</th><th class="num">Score</th><th>Behaviour</th><th>Remark (optional, max ${P().remarkMaxLength})</th><th></th>${editable && (mine || isAdmin()) ? "<th></th>" : ""}</tr></thead>
+      <thead><tr><th>#</th><th>Student</th><th class="num">Score</th><th>Behaviour</th><th>Remark (optional, max ${P().remarkMaxLength})</th><th class="center" title="Flag a concern for the advisor">⚑ Flag</th><th></th>${editable && (mine || isAdmin()) ? "<th></th>" : ""}</tr></thead>
       <tbody>
       ${rows.map((r, i) => `
         <tr data-id="${r.id}">
@@ -364,6 +371,7 @@ function viewEntry(main) {
           <td class="num"><input class="score" inputmode="decimal" autocomplete="off" value="${blank(r.f.Score) ? "" : esc(r.f.Score)}" ${editable ? "" : "disabled"} aria-label="Score for ${esc(r.f.FullName)}"></td>
           <td><select class="beh" ${editable ? "" : "disabled"} aria-label="Behaviour for ${esc(r.f.FullName)}"><option value=""></option>${scale.map((b) => `<option value="${b.value}" ${Number(r.f.Behaviour) === b.value ? "selected" : ""}>${b.value} – ${esc(b.label)}</option>`).join("")}</select></td>
           <td><textarea class="remark" maxlength="${P().remarkMaxLength}" ${editable ? "" : "disabled"} aria-label="Remark for ${esc(r.f.FullName)}">${esc(r.f.Remark || "")}</textarea></td>
+          <td class="center"><input type="checkbox" class="concern" ${r.f.Concern ? "checked" : ""} ${editable ? "" : "disabled"} aria-label="Flag a concern about ${esc(r.f.FullName)} for the advisor"></td>
           <td class="rowstate"></td>
           ${editable && (mine || isAdmin()) ? `<td><button class="btn small danger rm" title="Remove this student from the class">✕</button></td>` : ""}
         </tr>`).join("")}
@@ -411,6 +419,8 @@ function viewEntry(main) {
     };
     beh.onchange = () => save({ Behaviour: beh.value ? Number(beh.value) : null });
     rem.onchange = () => save({ Remark: rem.value.trim() });
+    const con = $(".concern", tr);
+    con.onchange = () => save({ Concern: con.checked });
     const rm = $(".rm", tr);
     if (rm) rm.onclick = async () => {
       if (!confirm(`Remove ${r.f.FullName} from this class? Their score and remark for this subject will be deleted.`)) return;
@@ -463,7 +473,8 @@ function viewAdvisor(main) {
     <h1>Advisor view</h1>
     <div class="row" style="margin-bottom:12px">
       <label style="max-width:180px"><span>Grade</span><select id="advGrade">${grades.map((x) => `<option ${x === g ? "selected" : ""}>${esc(x)}</option>`).join("")}</select></label>
-      <div class="muted small" style="padding-bottom:8px">Advisor: ${esc(advisorName(g) || "not set")}</div>
+      <div class="muted small" style="padding-bottom:8px">Advisor: ${esc(advisorName(g) || "not set")} · <span class="badge info">${esc(termLabel())}</span></div>
+      <button class="btn primary" id="toPtc" style="margin-left:auto">${isMidterm() ? "PTC sheets for" : "Student summaries for"} ${esc(g)} →</button>
     </div>
     <div id="flash"></div>
     ${onlyMine ? notice("warn", "You can only see your own classes in this grade. Ask ICT to give you advisor access in Setup → Permissions.") : ""}
@@ -471,7 +482,8 @@ function viewAdvisor(main) {
       <div class="stat"><div class="k">Subjects submitted</div><div class="v">${classes.filter((c) => c.submitted).length} / ${Math.max(expected.length, classes.length)}</div></div>
       <div class="stat"><div class="k">Not started</div><div class="v">${notStarted.length}</div></div>
       <div class="stat"><div class="k">Students</div><div class="v">${roster.length}</div></div>
-      <div class="stat"><div class="k">Advisor comments written</div><div class="v">${roster.filter((s) => (commentFor(s.f.Title)?.f.Comment || "").trim()).length} / ${roster.length}</div></div>
+      <div class="stat"><div class="k">⚑ Concerns flagged</div><div class="v">${rows.filter((r) => r.f.Concern).length}</div></div>
+      <div class="stat"><div class="k">${isMidterm() ? "PTC notes written" : "Advisor comments written"}</div><div class="v">${roster.filter((s) => (commentFor(s.f.Title)?.f.Comment || "").trim()).length} / ${roster.length}</div></div>
     </div>
     <h2>Subjects</h2>
     <div class="table-wrap"><table>
@@ -489,10 +501,12 @@ function viewAdvisor(main) {
         const r = rows.find((x) => x.f.StudentID === s.f.Title && x.f.Subject === sub);
         if (!r) return `<td class="cell muted">·</td>`;
         const miss = blank(r.f.Score) || blank(r.f.Behaviour);
-        return `<td class="cell ${miss ? "missing" : ""}" title="${esc(r.byName)}${r.f.Remark ? " — " + esc(r.f.Remark) : ""}">${blank(r.f.Score) ? "–" : esc(r.f.Score)} / ${blank(r.f.Behaviour) ? "–" : esc(r.f.Behaviour)}</td>`;
+        return `<td class="cell ${miss ? "missing" : ""}" title="${esc(r.byName)}${r.f.Remark ? " — " + esc(r.f.Remark) : ""}">${blank(r.f.Score) ? "–" : esc(r.f.Score)} / ${blank(r.f.Behaviour) ? "–" : esc(r.f.Behaviour)}${r.f.Concern ? ` <span style="color:var(--bad)" title="Concern flagged">⚑</span>` : ""}</td>`;
       }).join("")}</tr>`).join("")}</tbody></table></div>
-    <h2>Advisor comments</h2>
-    <p class="small muted">${canComment ? "One comment per student. It prints in the teacher's comments box on page 1. Saves when you leave the box." : "Read only."}</p>
+    <h2>${isMidterm() ? "PTC notes" : "Advisor comments"}</h2>
+    <p class="small muted">${!canComment ? "Read only." : isMidterm()
+      ? "Optional, one per student. It prints at the top of their PTC sheet, e.g. \"Promoted from ESL to regular classes this semester\". Saves when you leave the box."
+      : "One comment per student. It prints in the teacher's comments box on page 1 of the report card. Saves when you leave the box."}</p>
     <div class="table-wrap"><table>
       <thead><tr><th style="width:220px">Student</th><th>Comment</th><th></th></tr></thead>
       <tbody>${roster.map((s) => { const c = commentFor(s.f.Title); return `
@@ -500,6 +514,7 @@ function viewAdvisor(main) {
         <td><textarea class="cmt" rows="3" maxlength="1200" ${canComment ? "" : "disabled"}>${esc(c?.f.Comment || "")}</textarea></td>
         <td class="rowstate"></td></tr>`; }).join("")}</tbody></table></div>`;
   $("#advGrade").onchange = (e) => { S.advGrade = e.target.value; render(); };
+  $("#toPtc").onclick = () => go("ptc");
   $$("[data-open]").forEach((b) => (b.onclick = () => { const c = classes[+b.dataset.open]; openClass(g, c.subject, c.level, c.by, "advisor"); }));
   for (const tr of $$("tr[data-sid]", main)) {
     const ta = $(".cmt", tr), state = $(".rowstate", tr), sid = tr.dataset.sid;
@@ -510,13 +525,97 @@ function viewAdvisor(main) {
         if (c) { await graph("PATCH", `${itemsUrl(L.comments)}/${c.id}/fields`, { Comment: text }); c.f.Comment = text; }
         else {
           const st = studentById(sid).f;
-          const it = await graph("POST", itemsUrl(L.comments), { fields: { Title: `${st.FullName} (${g})`, StudentID: sid, Grade: g, ...term(), Comment: text } });
+          const it = await graph("POST", itemsUrl(L.comments), { fields: { Title: `${st.FullName} (${g})`, StudentID: sid, Grade: g, ...termP(), Comment: text } });
           S.comments.push(norm(it));
         }
         state.textContent = "Saved ✓";
       } catch (e) { state.className = "rowstate err"; state.textContent = "Not saved"; flash("error", e.message); }
     };
   }
+}
+
+// ── PTC sheets (advisor's parent-meeting helper, not an official report) ──
+function ptcStudents(g) {
+  const rows = S.marks[g] || [];
+  const order = (r) => { const s = S.subjects.find((x) => x.f.Grade === g && x.f.Title === r.f.Subject); return s ? (s.f.SortOrder ?? 999) : 999; };
+  return rosterFor(g).map((st) => {
+    const id = st.f.Title;
+    const subj = rows.filter((r) => r.f.StudentID === id)
+      .sort((a, b) => (a.f.SubjectType || "I").localeCompare(b.f.SubjectType || "I") || order(a) - order(b));
+    const scored = subj.filter((r) => !blank(r.f.Score));
+    const avg = scored.length ? scored.reduce((a, r) => a + Number(r.f.Score), 0) / scored.length : null;
+    const byScore = [...scored].sort((a, b) => Number(b.f.Score) - Number(a.f.Score));
+    const concerns = subj.filter((r) => r.f.Concern || Number(r.f.Behaviour) >= 3);
+    return { st: st.f, subj, avg, concerns,
+      top: scored.length >= 4 ? byScore.slice(0, 2) : [],
+      low: scored.length >= 4 ? byScore.slice(-2).reverse() : [],
+      missing: subj.filter((r) => blank(r.f.Score) || blank(r.f.Behaviour)),
+      remarks: subj.filter((r) => (r.f.Remark || "").trim() && !concerns.includes(r)),
+      note: (S.comments.find((c) => c.f.StudentID === id && c.f.Grade === g)?.f.Comment || "").trim() };
+  });
+}
+function ptcPage(g, d, i, n) {
+  const name = d.st.CalledName || d.st.FullName;
+  const behClass = (b) => ["", "b1", "b2", "b3", "b4"][Number(b)] || "";
+  const short = (b) => (P().behaviourScale.find((x) => x.value === Number(b))?.label || "");
+  const subjName = (r) => esc(subjectDisplay(r.f));
+  const overall = d.avg === null ? `No marks have been entered for ${esc(name)} yet.`
+    : `${esc(name)} is averaging <b>${d.avg.toFixed(1)}%</b> across ${d.subj.filter((r) => !blank(r.f.Score)).length} subjects at ${esc(P().period.toLowerCase())}.`
+      + (d.top.length ? ` Strongest: ${d.top.map((r) => `${subjName(r)} (${r.f.Score}%)`).join(", ")}.` : "")
+      + (d.low.length ? ` Most room to grow: ${d.low.map((r) => `${subjName(r)} (${r.f.Score}%)`).join(", ")}.` : "")
+      + (d.concerns.length ? ` ${d.concerns.length} subject${d.concerns.length > 1 ? "s" : ""} raised a behaviour concern.` : "");
+  return `
+  <section class="ptc-page">
+    <header class="ptc-head">
+      <span>WZFS · ${esc(g)} – ${esc(advisorName(g))} · Parent-Teacher Conference · ${esc(P().period)} ${esc(P().semester)} ${esc(P().academicYear.slice(0, 4))}</span>
+      <span>${d.avg === null ? "" : `Avg ${d.avg.toFixed(1)}%`}</span>
+    </header>
+    <div class="ptc-name">${esc(name)} <small>${esc(d.st.FullName)} · ${esc(d.st.Title)}</small></div>
+    ${d.note ? `<div class="ptc-note">${esc(d.note)}</div>` : ""}
+    <div class="ptc-body">
+      <div class="ptc-main">
+        <h4>Overall</h4><p>${overall}</p>
+        ${d.missing.length ? `<p class="ptc-miss">Not yet entered: ${d.missing.map(subjName).join(", ")}</p>` : ""}
+        <h4>Subject scores</h4>
+        <table class="ptc-scores">${d.subj.map((r) => `
+          <tr><td>${subjName(r)}</td>
+            <td class="bar"><i class="${behClass(r.f.Behaviour)}" style="width:${blank(r.f.Score) ? 0 : Math.max(2, Math.min(100, Number(r.f.Score)))}%"></i></td>
+            <td class="num">${blank(r.f.Score) ? "–" : esc(r.f.Score) + "%"}</td><td class="beh">${esc(short(r.f.Behaviour))}${r.f.Concern ? " ⚑" : ""}</td></tr>`).join("")}
+        </table>
+        <div class="ptc-key">${P().behaviourScale.map((b) => `<span><i class="${behClass(b.value)}"></i>${esc(b.label)}</span>`).join("")}</div>
+        ${d.remarks.length ? `<h4>What teachers are saying</h4>${d.remarks.map((r) => `<p class="ptc-q"><b>${subjName(r)}:</b> “${esc(r.f.Remark)}”</p>`).join("")}` : ""}
+        ${d.concerns.length ? `<h4>Behaviour &amp; concerns</h4>${d.concerns.map((r) => `<p class="ptc-q concern"><b>${subjName(r)} [${[r.f.Concern ? "⚑ flagged by teacher" : "", Number(r.f.Behaviour) >= 3 ? esc(short(r.f.Behaviour)) : ""].filter(Boolean).join(" · ")}]</b>${r.f.Remark ? ` “${esc(r.f.Remark)}”` : ""}</p>`).join("")}` : ""}
+      </div>
+      <aside class="ptc-notes"><h4>Notes / action points</h4><div class="lines"></div></aside>
+    </div>
+    <footer class="ptc-foot"><span>CONFIDENTIAL · PTC use only · WZFS ${esc(P().academicYear)} · ${esc(name)}</span><span>${i} / ${n}</span></footer>
+  </section>`;
+}
+function viewPtc(main) {
+  const grades = isLeader() ? P().grades : advisorGrades();
+  if (!S.advGrade || !grades.includes(S.advGrade)) S.advGrade = grades[0] || "";
+  const g = S.advGrade;
+  const all = ptcStudents(g);
+  const pick = S.ptcStudent && all.some((d) => d.st.Title === S.ptcStudent) ? S.ptcStudent : "";
+  const list = pick ? all.filter((d) => d.st.Title === pick) : all;
+  const flagged = all.filter((d) => d.concerns.length).length;
+  main.innerHTML = `
+    <div class="no-print">
+      <p><a href="#" id="back">← Advisor view</a></p>
+      <h1>${isMidterm() ? "PTC sheets" : "Student summaries"}</h1>
+      <p class="lede">One page per bobae for parent meetings, built from what subject teachers entered. <b>Not an official report</b>: it's marked confidential and isn't sent home.</p>
+      <div class="row" style="margin-bottom:12px">
+        <label style="max-width:160px"><span>Grade</span><select id="ptcGrade">${grades.map((x) => `<option ${x === g ? "selected" : ""}>${esc(x)}</option>`).join("")}</select></label>
+        <label style="max-width:280px"><span>Bobae</span><select id="ptcStu"><option value="">All (${all.length})</option>${all.map((d) => `<option value="${esc(d.st.Title)}" ${d.st.Title === pick ? "selected" : ""}>${esc(d.st.CalledName || d.st.FullName)}${d.concerns.length ? " ⚑" : ""}</option>`).join("")}</select></label>
+        <button class="btn primary" id="ptcPrint">🖨 Print ${pick ? "this sheet" : `all ${list.length}`}</button>
+        <span class="small muted" style="padding-bottom:8px">${flagged} with concerns · Print → "Save as PDF" for a file · A4 portrait</span>
+      </div>
+    </div>
+    <div class="ptc-wrap">${list.map((d, i) => ptcPage(g, d, i + 1, list.length)).join("") || `<p class="muted">No bobaes in ${esc(g)}.</p>`}</div>`;
+  $("#back").onclick = (e) => { e.preventDefault(); go("advisor"); };
+  $("#ptcGrade").onchange = (e) => { S.advGrade = e.target.value; S.ptcStudent = ""; render(); };
+  $("#ptcStu").onchange = (e) => { S.ptcStudent = e.target.value; render(); };
+  $("#ptcPrint").onclick = () => window.print();
 }
 
 // ── Awards ───────────────────────────────────────────────────
@@ -666,6 +765,7 @@ function viewExport(main) {
     <p class="lede">Download each grade's marks file and the awards file, then upload them with the attendance sheet at
       <a href="https://wzfs-report-card.vercel.app/" target="_blank" rel="noopener">wzfs-report-card.vercel.app</a>.</p>
     <div id="flash"></div>
+    ${isMidterm() ? notice("warn", `The reporting period is <b>Midterm</b>, so these files hold mid-term marks. For report cards, switch the period to <b>Final</b> on the Setup tab.`) : ""}
     <p><button class="btn" id="reload">↻ Reload latest data</button></p>
     <div class="table-wrap"><table>
       <thead><tr><th>Grade</th><th class="num">Students</th><th class="num">Classes</th><th>Not submitted</th><th class="num">Blank marks</th><th class="num">Comments</th><th>Warnings</th><th></th></tr></thead>
@@ -710,14 +810,14 @@ function listSpecs() {
   const specs = [
     { name: L.students, kind: "read", cols: [T("FullName"), T("CalledName"), T("CertificateName"), T("Grade"), T("Email"), T("Department"), T("Joined"), CH("Status", ["Active", "Withdrawn"])] },
     { name: L.subjects, kind: "read", cols: [T("Grade"), CH("SubjectType", ["I", "II"]), T("Teacher"), B("PrintsOnCard"), N("SortOrder")] },
-    { name: L.catalogue, kind: "read", cols: [T("Category"), T("CertificateType"), B("Active"), N("SortOrder")] },
+    { name: L.catalogue, kind: "read", cols: [T("Category"), T("CertificateType"), CH("Season", ["Both", "Fall", "Spring"]), B("Active"), N("SortOrder")] },
     { name: L.settings, kind: "read", cols: [T("Json", true)] },
     { name: L.awards, kind: "entry", cols: [T("StudentID"), T("FullName"), T("CalledName"), T("Grade"), T("Category"), T("AwardName"), T("CertificateType"), T("Points"), T("Semester"), T("AcademicYear"), D("AwardDate"), T("AwardedBy"), B("Printed")] },
-    { name: L.comments, kind: "entry", cols: [T("StudentID"), T("Grade"), T("Semester"), T("AcademicYear"), T("Comment", true)] },
+    { name: L.comments, kind: "entry", cols: [T("StudentID"), T("Grade"), T("Semester"), T("AcademicYear"), T("Period"), T("Comment", true)] },
   ];
   for (const g of P().grades) specs.push({ name: marksListName(g), grade: g, kind: "marks", cols: [
-    T("StudentID"), T("FullName"), T("CalledName"), T("Subject"), CH("SubjectType", ["I", "II"]), T("ClassLevel"), T("Semester"), T("AcademicYear"),
-    N("Score", 0, 100, "one"), N("Behaviour", 1, 4, "none"), T("Remark", true), B("Submitted"), T("TeacherName")] });
+    T("StudentID"), T("FullName"), T("CalledName"), T("Subject"), CH("SubjectType", ["I", "II"]), T("ClassLevel"), T("Semester"), T("AcademicYear"), T("Period"),
+    N("Score", 0, 100, "one"), N("Behaviour", 1, 4, "none"), T("Remark", true), B("Concern"), B("Submitted"), T("TeacherName")] });
   return specs;
 }
 function readSheet(file) {
@@ -755,7 +855,9 @@ function viewSetup(main) {
 
     <div class="card"><h3>1 · SharePoint lists</h3>
       <p class="small">${specs.length - missing.length} of ${specs.length} lists exist on <a href="${esc(S.siteUrl)}" target="_blank" rel="noopener">${esc(S.siteUrl)}</a>.</p>
-      ${missing.length ? `<p class="small muted">Missing: ${missing.map((m) => esc(m.name)).join(", ")}</p><button class="btn primary" id="createLists">Create the missing lists</button>` : `<span class="badge ok">All lists exist</span>`}
+      ${missing.length ? `<p class="small muted">Missing: ${missing.map((m) => esc(m.name)).join(", ")}</p>` : `<p><span class="badge ok">All lists exist</span></p>`}
+      <button class="btn ${missing.length ? "primary" : ""}" id="createLists">${missing.length ? "Create the missing lists" : "Check lists for new columns"}</button>
+      <span class="small muted">Also adds any columns a newer version of the app needs. Existing data is never touched.</span>
       <pre id="createLog" class="small muted" style="white-space:pre-wrap"></pre>
     </div>
 
@@ -773,6 +875,7 @@ function viewSetup(main) {
       <div class="grid">
         <label><span>Academic year</span><input id="sYear" value="${esc(p.academicYear)}"></label>
         <label><span>Semester</span><select id="sSem">${p.semesters.map((s) => `<option ${s === p.semester ? "selected" : ""}>${esc(s)}</option>`).join("")}</select></label>
+        <label><span>Reporting period: what teachers are entering now</span><select id="sPeriod">${p.periods.map((s) => `<option ${s === p.period ? "selected" : ""}>${esc(s)}</option>`).join("")}</select></label>
         <label class="wide"><span>Admins (full access in this app), one email per line</span><textarea id="sAdmins" rows="2">${esc(p.admins.join("\n"))}</textarea></label>
         <label class="wide"><span>Leadership (read-only across grades), one email per line. Also add them as Owners of the SharePoint site.</span><textarea id="sLead" rows="3">${esc(p.leadership.join("\n"))}</textarea></label>
       </div>
@@ -804,14 +907,29 @@ function viewSetup(main) {
       </details>
     </div>
 
-    <div class="card"><h3>5 · Deployment check</h3>
+    <div class="card"><h3>5 · Subjects and awards during the year</h3>
+      <p class="small muted">Electives and awards change. Add or hide them here; no re-import needed. Hiding never deletes marks or awards already given.
+        To rename something, add the new name and hide the old one.</p>
+      <h3 style="margin-top:12px">Subjects</h3>
+      <div class="row" style="margin-bottom:8px">
+        <label style="max-width:150px"><span>Grade</span><select id="mgGrade">${p.grades.map((g) => `<option ${g === S.mgGrade ? "selected" : ""}>${esc(g)}</option>`).join("")}</select></label>
+      </div>
+      <div id="mgSubjects"></div>
+      <h3 style="margin-top:16px">Award catalogue</h3>
+      <div class="row" style="margin-bottom:8px">
+        <label style="max-width:260px"><span>Category</span><select id="mcCat"></select></label>
+        <label style="flex:1;min-width:180px"><span>Find</span><input id="mcFind" placeholder="Award name"></label>
+      </div>
+      <div id="mgAwards"></div>
+    </div>
+
+    <div class="card"><h3>6 · Deployment check</h3>
       <p class="small">Redirect URI for this address (add it in Entra → App registration → Authentication → Single-page application): <code>${esc(redirectUri)}</code></p>
       <p class="small">Signed in as <code>${esc(S.me)}</code> · site <code>${esc(S.siteId)}</code></p>
     </div>`;
 
-  const cl = $("#createLists");
-  if (cl) cl.onclick = async () => {
-    cl.disabled = true; const log = $("#createLog");
+  $("#createLists").onclick = async () => {
+    $("#createLists").disabled = true; const log = $("#createLog"); log.textContent = "";
     for (const s of missing) {
       log.textContent += `Creating ${s.name}… `;
       try {
@@ -819,8 +937,17 @@ function viewSetup(main) {
         log.textContent += "done\n";
       } catch (e) { log.textContent += "FAILED: " + e.message + "\n"; }
     }
-    await loadAll(); log.textContent += "Finished. Next: import data, then permissions.\n";
-    setTimeout(render, 1200);
+    for (const s of specs.filter((x) => S.lists[x.name])) {
+      try {
+        const cols = await graph("GET", `/sites/${S.siteId}/lists/${S.lists[s.name].id}/columns?$select=name`, null, SETUP_SCOPES);
+        const have = new Set(cols.value.map((c) => c.name));
+        const add = s.cols.filter((c) => !have.has(c.name));
+        for (const c of add) await graph("POST", `/sites/${S.siteId}/lists/${S.lists[s.name].id}/columns`, c, SETUP_SCOPES);
+        if (add.length) log.textContent += `${s.name}: added ${add.map((c) => c.name).join(", ")}\n`;
+      } catch (e) { log.textContent += `${s.name}: column check FAILED: ${e.message}\n`; }
+    }
+    await loadAll(); log.textContent += "Finished. All lists are up to date.\n";
+    setTimeout(render, 1500);
   };
 
   const imp = (id, fn) => { $(id).onchange = async (e) => {
@@ -840,30 +967,58 @@ function viewSetup(main) {
     return `Roster: ${recs.length} students read, ${sent} added/updated, ${failed.length} failed.` + (unknownGrades.length ? ` Note: grades not in the app's grade list: ${unknownGrades.join(", ")}.` : "");
   });
   imp("#fSubjects", async (wb) => {
-    const seen = new Set(), recs = [];
-    rowsOf(wb, /subjects/i).forEach((r, i) => {
-      const grade = col(r, "Grade"), name = col(r, "Suggested canonical name", "Subject", "Subject (as used in Spring 2026)");
-      if (!grade || !name || seen.has(grade + "|" + name)) return; seen.add(grade + "|" + name);
-      recs.push({ Title: name, Grade: grade, SubjectType: /ii/i.test(col(r, "Subject I / II", "Subject_Type", "Type")) ? "II" : "I",
-        Teacher: col(r, "Teacher for Fall 2026", "Teacher"), PrintsOnCard: !/^no/i.test(col(r, "Prints on report card?", "PrintsOnCard")), SortOrder: i + 1 });
-    });
-    const { sent, failed } = await upsert(L.subjects, recs, (f) => f.Grade + "|" + f.Title, S.subjects);
-    return `Subjects: ${recs.length} read, ${sent} added/updated, ${failed.length} failed.`;
+    // Accepts one sheet with a Grade column (Upper School file) or one sheet per grade named "G1", "Grade 1"… (Primary file).
+    const gradeOf = (s) => { const t = String(s || "").replace(/\s+/g, "").replace(/^grade/i, "G").toUpperCase(); return P().grades.find((g) => g.toUpperCase() === t || g.toUpperCase() === "G" + t) || ""; };
+    // Same list as the report card generator (Subject II), matched on whole words, plus choir.
+    const extracurricular = /\b(pe|p\.e\.|physical education|drama|orchestra|choir|debate|well-?being|pshe|careers|electives?|ecc|sports?|board games|food tech(nology)?|homeroom)\b/i;
+    const seen = new Set(), recs = [], skipped = new Set();
+    let order = 0;
+    for (const sheet of wb.SheetNames) {
+      const sheetGrade = gradeOf(sheet);
+      for (const r of XLSX.utils.sheet_to_json(wb.Sheets[sheet], { defval: "" })) {
+        const grade = gradeOf(col(r, "Grade", "Class")) || sheetGrade;
+        const name = col(r, "Suggested canonical name", "Subject", "Subjects", "Subject Name", "Subject (as used in Spring 2026)").replace(/\s+/g, " ");
+        if (!name) continue;
+        if (!grade) { skipped.add(sheet); continue; }
+        const key = grade + "|" + lc(name); if (seen.has(key)) continue; seen.add(key);
+        const typeCell = col(r, "Subject I / II", "Subject_Type", "Type", "Subject Type");
+        recs.push({ Title: name, Grade: grade, SubjectType: typeCell ? (/ii|2|extra/i.test(typeCell) ? "II" : "I") : (extracurricular.test(name) ? "II" : "I"),
+          Teacher: col(r, "Teacher for Fall 2026", "Teacher"), PrintsOnCard: !/^no/i.test(col(r, "Prints on report card?", "PrintsOnCard")), SortOrder: ++order });
+      }
+    }
+    if (!recs.length) throw new Error(`No subjects found. Each sheet needs a "Subject" column, and either a "Grade" column or a sheet name like G1.`);
+    const { sent, failed } = await upsert(L.subjects, recs, (f) => f.Grade + "|" + lc(f.Title), S.subjects);
+    const grades = [...new Set(recs.map((r) => r.Grade))];
+    return `Subjects: ${recs.length} read for ${grades.join(", ")} (${recs.filter((r) => r.SubjectType === "II").length} marked extracurricular), ${sent} added/updated, ${failed.length} failed.`
+      + (skipped.size ? ` Skipped sheets with no grade: ${[...skipped].join(", ")}.` : "") + " Check the I/II types on the Subjects screen below.";
   });
   imp("#fCatalogue", async (wb) => {
-    const all = await Promise.resolve(readList(L.catalogue));
+    const all = await readList(L.catalogue);
+    // Tidy: collapse odd spaces (incl. full-width), drop case-only duplicates ("Most improved in ICT" twice).
+    const clean = (s) => String(s || "").replace(/[\s　]+/g, " ").trim();
+    const seen = new Set(), dupes = [];
     const recs = rowsOf(wb, /choice list/i).map((r, i) => ({
-      Title: col(r, "Award name", "Award name (cleaned)", "Award_Name"), Category: col(r, "Category"),
-      CertificateType: col(r, "Certificate type", "Certificate_Type"), Active: true, SortOrder: i + 1 })).filter((r) => r.Title && r.Category);
-    const { sent, failed } = await upsert(L.catalogue, recs, (f) => f.Category + "|" + f.Title, all);
-    return `Award catalogue: ${recs.length} awards read, ${sent} added/updated, ${failed.length} failed.`;
+      Title: clean(col(r, "Award name", "Award name (cleaned)", "Award_Name")), Category: clean(col(r, "Category")),
+      CertificateType: ((t) => P().certificateTypes.find((x) => lc(x) === lc(t)) || t)(clean(col(r, "Certificate type", "Certificate_Type"))),
+      Season: ((s) => ["Fall", "Spring"].find((x) => lc(x) === lc(s)) || "Both")(clean(col(r, "Season", "Semester"))), Active: true, SortOrder: i + 1 }))
+      .filter((r) => { if (!r.Title || !r.Category) return false; const k = lc(r.Category + "|" + r.Title); if (seen.has(k)) { dupes.push(r.Title); return false; } seen.add(k); return true; });
+    const oddTypes = [...new Set(recs.map((r) => r.CertificateType).filter((t) => !P().certificateTypes.includes(t)))];
+    const keyOf = (f) => lc(clean(f.Category) + "|" + clean(f.Title));
+    // Retire extra copies already in SharePoint, and awards no longer in the file (kept for history, hidden from teachers).
+    const first = new Map(); for (const x of all) if (!first.has(keyOf(x.f))) first.set(keyOf(x.f), x.id);
+    const retire = all.filter((x) => x.f.Active !== false && (!seen.has(keyOf(x.f)) || first.get(keyOf(x.f)) !== x.id));
+    const { sent, failed } = await upsert(L.catalogue, recs, keyOf, all.filter((x) => first.get(keyOf(x.f)) === x.id));
+    if (retire.length) await batch(retire.map((x) => ({ method: "PATCH", url: `${itemsUrl(L.catalogue)}/${x.id}/fields`, body: { Active: false } })));
+    return `Award catalogue: ${recs.length} awards in ${new Set(recs.map((r) => r.Category)).size} categories, ${sent} added/updated, ${retire.length} retired, ${failed.length} failed.`
+      + (dupes.length ? ` Skipped ${dupes.length} duplicate names (same award, different capitals).` : "")
+      + (oddTypes.length ? ` Check certificate type: ${oddTypes.join(", ")}.` : "");
   });
 
   $("#saveSettings").onclick = async () => {
     const lines = (id) => $(id).value.split(/[\s,;]+/).map(lc).filter(Boolean);
     const advisors = {};
     for (const g of P().grades) advisors[g] = { name: $(`.advName[data-g="${g}"]`).value.trim(), co: $(`.advCo[data-g="${g}"]`).value.trim(), email: emailsOf($(`.advEmail[data-g="${g}"]`).value).join(", ") };
-    const json = { academicYear: $("#sYear").value.trim(), semester: $("#sSem").value, admins: lines("#sAdmins"), leadership: lines("#sLead"), advisors };
+    const json = { academicYear: $("#sYear").value.trim(), semester: $("#sSem").value, period: $("#sPeriod").value, admins: lines("#sAdmins"), leadership: lines("#sLead"), advisors };
     if (!json.admins.includes(S.me) && !confirm("You are removing yourself from the admins. Continue?")) return;
     try {
       if (S.settingsItem) await graph("PATCH", `${itemsUrl(L.settings)}/${S.settingsItem.id}/fields`, { Json: JSON.stringify(json, null, 1) });
@@ -879,6 +1034,89 @@ function viewSetup(main) {
     catch (e) { out("FAILED: " + e.message); out("Use the manual links below instead."); }
     $("#applyPerms").disabled = false;
   };
+  bindYearTools();
+}
+
+// Setup step 5: maintain subjects and the award catalogue in place.
+function bindYearTools() {
+  const p = P();
+  S.mgGrade = $("#mgGrade").value;
+  const drawSubjects = () => {
+    const g = S.mgGrade;
+    const list = S.subjects.filter((s) => s.f.Grade === g);
+    $("#mgSubjects").innerHTML = `
+      <div class="table-wrap"><table><thead><tr><th>Subject</th><th>Type</th><th class="center">Shown to teachers</th></tr></thead><tbody>
+        ${list.map((s) => `<tr><td>${esc(s.f.Title)}</td><td><select data-stype="${s.id}" style="width:190px"><option value="I">I · academic</option><option value="II" ${s.f.SubjectType === "II" ? "selected" : ""}>II · extracurricular</option></select></td>
+          <td class="center"><input type="checkbox" data-subj="${s.id}" ${s.f.PrintsOnCard !== false ? "checked" : ""}></td></tr>`).join("")
+          || `<tr><td colspan="3" class="muted">No subjects for ${esc(g)} yet.</td></tr>`}
+      </tbody></table></div>
+      <div class="row">
+        <label style="flex:1;min-width:200px"><span>New subject or elective for ${esc(g)}</span><input id="nsName" maxlength="80" placeholder="e.g. Elective (Robotics)"></label>
+        <label style="max-width:190px"><span>Type</span><select id="nsType"><option value="I">I · academic</option><option value="II">II · extracurricular</option></select></label>
+        <button class="btn" id="nsAdd">Add</button>
+      </div>`;
+    $$("[data-subj]").forEach((c) => (c.onchange = async () => {
+      try { await graph("PATCH", `${itemsUrl(L.subjects)}/${c.dataset.subj}/fields`, { PrintsOnCard: c.checked }); S.subjects.find((s) => s.id === c.dataset.subj).f.PrintsOnCard = c.checked; flash("ok", "Saved."); }
+      catch (e) { c.checked = !c.checked; flash("error", e.message); }
+    }));
+    $$("[data-stype]").forEach((sel) => (sel.onchange = async () => {
+      try { await graph("PATCH", `${itemsUrl(L.subjects)}/${sel.dataset.stype}/fields`, { SubjectType: sel.value }); S.subjects.find((s) => s.id === sel.dataset.stype).f.SubjectType = sel.value; flash("ok", "Saved. Classes created from now on use the new type."); }
+      catch (e) { sel.value = sel.value === "I" ? "II" : "I"; flash("error", e.message); }
+    }));
+    $("#nsAdd").onclick = async () => {
+      const name = $("#nsName").value.replace(/\s+/g, " ").trim(); if (!name) return;
+      if (list.some((s) => lc(s.f.Title) === lc(name))) return flash("warn", `${g} already has "${name}". Tick it to show it again.`);
+      try {
+        const it = await graph("POST", itemsUrl(L.subjects), { fields: { Title: name, Grade: g, SubjectType: $("#nsType").value, PrintsOnCard: true,
+          SortOrder: Math.max(0, ...S.subjects.map((s) => s.f.SortOrder || 0)) + 1 } });
+        S.subjects.push(norm(it)); drawSubjects(); flash("ok", `Added "${name}" to ${g}.`);
+      } catch (e) { flash("error", e.message); }
+    };
+  };
+  $("#mgGrade").onchange = (e) => { S.mgGrade = e.target.value; drawSubjects(); };
+  drawSubjects();
+
+  const all = S.catalogueAll || [];
+  const cats = [...new Set(all.map((c) => c.f.Category).filter(Boolean))].sort();
+  $("#mcCat").innerHTML = `<option value="">All categories (${all.length})</option>` + cats.map((c) => `<option ${c === S.mcCat ? "selected" : ""}>${esc(c)}</option>`).join("");
+  const drawAwards = () => {
+    const q = lc($("#mcFind").value);
+    const list = all.filter((c) => (!S.mcCat || c.f.Category === S.mcCat) && (!q || lc(c.f.Title).includes(q)));
+    $("#mgAwards").innerHTML = `
+      <div class="table-wrap" style="max-height:420px;overflow:auto"><table><thead><tr><th>Award</th><th>Category</th><th>Certificate type</th><th>Season</th><th class="center">Shown</th></tr></thead><tbody>
+        ${list.map((c) => `<tr><td>${esc(c.f.Title)}</td><td class="small">${esc(c.f.Category)}</td><td class="small">${esc(c.f.CertificateType || "")}</td>
+          <td><select data-season="${c.id}" style="width:100px">${["Both", "Fall", "Spring"].map((s) => `<option ${(c.f.Season || "Both") === s ? "selected" : ""}>${s}</option>`).join("")}</select></td>
+          <td class="center"><input type="checkbox" data-active="${c.id}" ${c.f.Active !== false ? "checked" : ""}></td></tr>`).join("")
+          || `<tr><td colspan="5" class="muted">Nothing matches.</td></tr>`}
+      </tbody></table></div>
+      <div class="grid" style="align-items:end">
+        <label><span>Category (pick or type a new one)</span><input id="naCat" list="naCats" value="${esc(S.mcCat || "")}"><datalist id="naCats">${cats.map((c) => `<option value="${esc(c)}">`).join("")}</datalist></label>
+        <label><span>New award name</span><input id="naName" maxlength="160"></label>
+        <label><span>Certificate type</span><select id="naType">${p.certificateTypes.map((t) => `<option>${esc(t)}</option>`).join("")}</select></label>
+        <label><span>Season</span><select id="naSeason"><option>Both</option><option>Fall</option><option>Spring</option></select></label>
+        <div><button class="btn" id="naAdd">Add award</button></div>
+      </div>`;
+    const patch = async (id, fields, undo) => {
+      try { await graph("PATCH", `${itemsUrl(L.catalogue)}/${id}/fields`, fields); Object.assign(all.find((c) => c.id === id).f, fields); S.catalogue = all.filter((x) => x.f.Active !== false && (!x.f.Season || x.f.Season === "Both" || x.f.Season === P().semester)); flash("ok", "Saved."); }
+      catch (e) { undo(); flash("error", e.message); }
+    };
+    $$("[data-active]").forEach((c) => (c.onchange = () => patch(c.dataset.active, { Active: c.checked }, () => (c.checked = !c.checked))));
+    $$("[data-season]").forEach((s) => { const was = s.value; s.onchange = () => patch(s.dataset.season, { Season: s.value }, () => (s.value = was)); });
+    $("#naAdd").onclick = async () => {
+      const cat = $("#naCat").value.replace(/\s+/g, " ").trim(), name = $("#naName").value.replace(/\s+/g, " ").trim();
+      if (!cat || !name) return flash("warn", "Give the award a category and a name.");
+      if (all.some((c) => lc(c.f.Category) === lc(cat) && lc(c.f.Title) === lc(name))) return flash("warn", `"${name}" is already in ${cat}. Tick "Shown" if it's hidden.`);
+      try {
+        const it = await graph("POST", itemsUrl(L.catalogue), { fields: { Title: name, Category: cat, CertificateType: $("#naType").value, Season: $("#naSeason").value, Active: true,
+          SortOrder: Math.max(0, ...all.map((c) => c.f.SortOrder || 0)) + 1 } });
+        all.push(norm(it)); S.catalogue = all.filter((x) => x.f.Active !== false && (!x.f.Season || x.f.Season === "Both" || x.f.Season === P().semester));
+        S.mcCat = cat; bindYearTools(); flash("ok", `Added "${name}".`);
+      } catch (e) { flash("error", e.message); }
+    };
+  };
+  $("#mcCat").onchange = (e) => { S.mcCat = e.target.value; drawAwards(); };
+  $("#mcFind").oninput = drawAwards;
+  drawAwards();
 }
 const claims = (email) => `i:0#.f|membership|${email}`;
 async function applyPermissions(specs, staffEmails, out) {

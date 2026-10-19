@@ -129,6 +129,45 @@
   .pde-hero { text-align: center; padding: 40px 20px; }
   .pde-hero .big { font-size: 40px; }
   @media (max-width: 640px) { th, td { padding: 6px 7px; } .stat .v { font-size: 19px; } }
+
+  /* PTC sheets — A4 portrait, one page per bobae. Always light, like paper. */
+  .ptc-wrap { display: flex; flex-direction: column; gap: 18px; align-items: center; }
+  .ptc-page { width: 210mm; min-height: 297mm; padding: 12mm 13mm 10mm; background: #fff; color: #1d2430; box-shadow: 0 1px 6px rgba(0,0,0,.18);
+    display: flex; flex-direction: column; font-size: 12.5px; line-height: 1.45; }
+  .ptc-head { display: flex; justify-content: space-between; gap: 10px; border-bottom: 3px solid #0b1046; padding-bottom: 5px; font-size: 10.5px; color: #0b1046; font-weight: 600; }
+  .ptc-name { font-size: 26px; font-weight: 700; color: #0b1046; margin: 8px 0 4px; }
+  .ptc-name small { font-size: 12px; font-weight: 400; color: #5d6675; margin-left: 8px; }
+  .ptc-note { background: #fbf0dc; border-left: 4px solid #9a5b00; padding: 6px 10px; margin: 4px 0 6px; font-weight: 600; color: #6b4000; }
+  .ptc-body { display: grid; grid-template-columns: minmax(0, 1fr) 62mm; gap: 6mm; flex: 1; }
+  .ptc-page h4 { font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: #0b1046; border-bottom: 1px solid #c8cdd6; margin: 10px 0 5px; padding-bottom: 2px; }
+  .ptc-page p { margin: 0 0 5px; }
+  .ptc-miss { color: #9a5b00; }
+  .ptc-scores { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .ptc-scores td { padding: 4px 4px; border: 0; border-bottom: 1px solid #eceff3; color: #1d2430; }
+  .ptc-scores td.bar { width: 42%; }
+  .ptc-scores td.bar i, .ptc-key i { display: block; height: 9px; border-radius: 3px; background: #c8cdd6; }
+  .ptc-scores td.num { text-align: right; font-weight: 700; width: 44px; }
+  .ptc-scores td.beh { width: 92px; color: #5d6675; font-size: 10px; }
+  .ptc-page .b1 { background: #2e9d5b !important; } .ptc-page .b2 { background: #d9a400 !important; }
+  .ptc-page .b3 { background: #e5701c !important; } .ptc-page .b4 { background: #c62f25 !important; }
+  .ptc-key { display: flex; gap: 12px; font-size: 9.5px; color: #5d6675; margin: 5px 0 2px; }
+  .ptc-key span { display: flex; align-items: center; gap: 4px; } .ptc-key i { width: 14px; }
+  .ptc-q { font-size: 11.5px; } .ptc-q.concern b { color: #b3261e; }
+  .ptc-notes { border: 1px solid #c8cdd6; border-radius: 6px; padding: 6px 8px; display: flex; flex-direction: column; }
+  .ptc-notes h4 { margin-top: 0; }
+  .ptc-notes .lines { flex: 1; background-image: linear-gradient(to bottom, transparent 27px, #dfe3e9 27px); background-size: 100% 28px; }
+  .ptc-foot { display: flex; justify-content: space-between; border-top: 1px solid #c8cdd6; margin-top: 8px; padding-top: 4px; font-size: 9px; color: #5d6675; letter-spacing: .04em; }
+  @media (max-width: 860px) { .ptc-page { width: 100%; min-height: 0; } .ptc-body { grid-template-columns: 1fr; } .ptc-notes { min-height: 120px; } }
+  @media print {
+    @page { size: A4 portrait; margin: 0; }
+    body { background: #fff; }
+    header.top, .site-footer, .no-print { display: none !important; }
+    main { max-width: none; padding: 0; }
+    .ptc-wrap { display: block; }
+    .ptc-page { box-shadow: none; width: 210mm; height: 297mm; min-height: 0; overflow: hidden; break-after: page; }
+    .ptc-page:last-child { break-after: auto; }
+    .ptc-page, .ptc-page * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
 </style>
 </head>
 <body>

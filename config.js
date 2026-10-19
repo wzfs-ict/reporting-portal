@@ -35,6 +35,10 @@ window.APP_CONFIG = {
   academicYear: "2026-27",
   semester: "Fall",               // Fall | Spring
   semesters: ["Fall", "Spring"],
+  // Midterm = marks + remarks for the PTC sheets (not official). Final = the report card.
+  // Each period keeps its own marks, so midterm entries are never overwritten by finals.
+  period: "Midterm",
+  periods: ["Midterm", "Final"],
 
   grades: ["G1", "G2", "G3", "G4", "G5", "G6", "G7", "G8", "G9-1", "G9-2", "G10", "G11", "G12", "ZSA"],
 
@@ -49,6 +53,7 @@ window.APP_CONFIG = {
     "dlee@zhongshischool.org",         // Daniel Lee, Vice President
     "mkkim@zhongshischool.org",        // Andy Kim, VP Communications
     "rrussell@zhongshischool.org",     // Roger Russell
+    "xtobias@zhongshischool.org",      // Xochitl Tobias, VP Primary
   ],
   // Teaching staff — pre-fills Setup → Permissions (the "Reporting Staff" group).
   staff: [
@@ -56,6 +61,8 @@ window.APP_CONFIG = {
     "xtobias@zhongshischool.org", "schoe@zhongshischool.org", "smuivah@zhongshischool.org",
     "msiao@zhongshischool.org", "mmabini@zhongshischool.org", "osubira@zhongshischool.org",
     "lrodriguez@zhongshischool.org", "mgangaramani@zhongshischool.org", "bbirkenstock@zhongshischool.org",
+    "eduarte@zhongshischool.org",      // Eri Duarte — PE (Athletics Director)
+    "kyang@zhongshischool.org",        // Kimberly Yang — Choir / Orchestra
     // Upper School
     "abagapuro@zhongshischool.org", "b_reacher@zhongshischool.org", "jpatole@zhongshischool.org",
     "jpaa@zhongshischool.org", "ayu@zhongshischool.org", "agong@zhongshischool.org",
@@ -99,6 +106,7 @@ window.APP_CONFIG = {
   remarkMaxLength: 300,
   certificateTypes: [
     "Certificate of Recognition",
+    "Certificate of Achievement",
     "Certificate of Distinction",
     "Certificate of Participation",
     "Teacher Award",
