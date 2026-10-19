@@ -17,7 +17,7 @@ const S = {
   students: [], subjects: [], catalogue: [], settingsItem: null, settings: {},
   marks: {}, comments: [], awards: [],
   tab: "classes", cls: null, back: "classes",
-  advGrade: "", ptcStudent: "", awGrade: "", awSel: new Set(), awSearch: "", awAll: false,
+  advGrade: "", ptcStudent: "", awGrade: "", awForm: {}, awSel: new Set(), awSearch: "", awAll: false,
   loadErr: null,
 };
 
@@ -138,7 +138,7 @@ async function loadAll() {
   S.subjects = subjects.sort((a, b) => (a.f.SortOrder ?? 999) - (b.f.SortOrder ?? 999) || (a.f.Title || "").localeCompare(b.f.Title || ""));
   S.catalogueAll = catalogue.sort((a, b) => (a.f.SortOrder ?? 999) - (b.f.SortOrder ?? 999));
   // Teachers see active awards for this semester (Season blank or "Both" = all year).
-  S.catalogue = S.catalogueAll.filter((x) => x.f.Active !== false && (!x.f.Season || x.f.Season === "Both" || x.f.Season === P().semester));
+  S.catalogue = teacherCatalogue();
   await Promise.all([loadMarks(), loadComments(), loadAwards()]);
 }
 async function loadMarks(grade) {
@@ -619,7 +619,19 @@ function viewPtc(main) {
 }
 
 // ── Awards ───────────────────────────────────────────────────
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+// Teachers see every active award all year; each is labelled with the semester it is usually given in.
+const teacherCatalogue = () => (S.catalogueAll || []).filter((x) => x.f.Active !== false);
+const seasonLabel = (s) => (s === "Fall" || s === "Spring" ? s : "All year");
+function awardOptions(cat, selectedId) {
+  if (!cat) return `<option value="">Choose a category first</option>`;
+  const rank = (c) => (c.f.Season === P().semester ? 0 : !c.f.Season || c.f.Season === "Both" ? 1 : 2);   // this semester's first
+  const list = S.catalogue.filter((c) => c.f.Category === cat).sort((a, b) => rank(a) - rank(b) || (a.f.Title || "").localeCompare(b.f.Title || ""));
+  return `<option value="">Choose…</option>` + list.map((c) => `<option value="${esc(c.id)}" ${c.id === selectedId ? "selected" : ""}>${esc(c.f.Title)} · ${seasonLabel(c.f.Season)}</option>`).join("");
+}
 function viewAwards(main) {
+  const F = S.awForm;
+  if (F.cat && !S.catalogue.some((c) => c.f.Category === F.cat)) Object.assign(F, { cat: "", id: "" });
   const grades = P().grades;
   if (!S.awGrade) S.awGrade = advisorGrades()[0] || grades[0];
   const g = S.awGrade;
@@ -659,11 +671,14 @@ function viewAwards(main) {
       <div class="card award-panel">
         <h3>Give an award</h3>
         <p class="small muted" id="awSelText"></p>
-        <label><span>Category</span><select id="awCat"><option value="">Choose…</option>${cats.map((c) => `<option>${esc(c)}</option>`).join("")}</select></label>
-        <label style="margin-top:8px"><span>Award</span><select id="awName" disabled><option value="">Choose a category first</option></select></label>
-        <label style="margin-top:8px"><span>Certificate type</span><select id="awType">${P().certificateTypes.map((t) => `<option>${esc(t)}</option>`).join("")}</select></label>
-        <label style="margin-top:8px"><span>Service points (optional). A number like 16, or Gold / Silver / Bronze. Leave blank for a certificate.</span><input id="awPoints" maxlength="20"></label>
-        <label style="margin-top:8px"><span>Date</span><input id="awDate" type="date" value="${today}"></label>
+        <label><span>Category</span><select id="awCat"><option value="">Choose…</option>${cats.map((c) => `<option ${c === F.cat ? "selected" : ""}>${esc(c)}</option>`).join("")}</select></label>
+        <label style="margin-top:8px"><span>Award <span class="muted">(labelled Fall, Spring or All year)</span></span><select id="awName" ${F.cat ? "" : "disabled"}>${awardOptions(F.cat, F.id)}</select></label>
+        <div id="awCriteria" class="small" style="margin-top:6px"></div>
+        <label style="margin-top:8px" id="awTitleWrap" hidden><span>Award title (your own words, e.g. Good Samaritan)</span><input id="awTitle" maxlength="120" value="${esc(F.title || "")}"></label>
+        <label style="margin-top:8px" id="awMonthWrap" hidden><span>Month</span><select id="awMonth">${MONTHS.map((m) => `<option ${m === (F.month || MONTHS[new Date().getMonth()]) ? "selected" : ""}>${m}</option>`).join("")}</select></label>
+        <label style="margin-top:8px"><span>Certificate type</span><select id="awType">${P().certificateTypes.map((t) => `<option ${t === F.type ? "selected" : ""}>${esc(t)}</option>`).join("")}</select></label>
+        <label style="margin-top:8px"><span id="awPointsLabel">Service points (optional). A number like 16, or Gold / Silver / Bronze. Leave blank for a certificate.</span><input id="awPoints" maxlength="20" value="${esc(F.points || "")}"></label>
+        <label style="margin-top:8px"><span>Date</span><input id="awDate" type="date" value="${esc(F.date || today)}"></label>
         <p style="margin-top:12px"><button class="btn primary" id="awSave" disabled>Save award</button></p>
       </div>
     </div>
@@ -678,12 +693,22 @@ function viewAwards(main) {
         <td>${a.by === S.me || isAdmin() ? `<button class="btn small danger" data-del="${a.id}">Delete</button>` : ""}</td></tr>`).join("")}
         ${!visible.length ? `<tr><td colspan="9" class="muted">None yet.</td></tr>` : ""}
       </tbody></table></div>`;
+  const current = () => S.catalogue.find((x) => x.id === $("#awName").value);
   const updSel = () => {
-    const n = S.awSel.size;
+    const n = S.awSel.size, c = current();
     const names = [...S.awSel].map((id) => studentById(id)?.f.CalledName || id);
     $("#awSelText").textContent = n ? `${n} selected: ${names.slice(0, 6).join(", ")}${n > 6 ? "…" : ""}` : "No students selected yet.";
-    $("#awSave").disabled = !(n && $("#awName").value);
+    $("#awTitleWrap").hidden = !(c && c.f.CustomTitle);
+    $("#awMonthWrap").hidden = !(c && c.f.AskMonth);
+    const isPoints = c && c.f.CertificateType === "Service Points";
+    $("#awPointsLabel").textContent = isPoints ? "Service points (required): a number like 16, or Gold / Silver / Bronze." : "Service points (optional). A number like 16, or Gold / Silver / Bronze. Leave blank for a certificate.";
+    $("#awCriteria").innerHTML = c && c.f.Criteria ? notice("", `<b>Criteria:</b> ${esc(c.f.Criteria)}`) : "";
+    const ready = n && c && (!c.f.CustomTitle || $("#awTitle").value.trim()) && (!isPoints || $("#awPoints").value.trim());
+    $("#awSave").disabled = !ready;
   };
+  const remember = () => Object.assign(S.awForm, { cat: $("#awCat").value, id: $("#awName").value, type: $("#awType").value, points: $("#awPoints").value,
+    date: $("#awDate").value, month: $("#awMonth").value, title: $("#awTitle").value });
+  ["#awType", "#awPoints", "#awDate", "#awMonth", "#awTitle"].forEach((s) => ($(s).oninput = $(s).onchange = () => { remember(); updSel(); }));
   $("#awGrade").onchange = (e) => { S.awGrade = e.target.value; S.awSel.clear(); render(); };
   const search = $("#awSearch");
   search.oninput = () => { S.awSearch = search.value; const pos = search.selectionStart; render(); const s2 = $("#awSearch"); s2.focus(); s2.setSelectionRange(pos, pos); };
@@ -693,32 +718,37 @@ function viewAwards(main) {
   $$(".stu").forEach((b) => (b.onclick = () => { const id = b.dataset.sid; S.awSel.has(id) ? S.awSel.delete(id) : S.awSel.add(id); render(); }));
   const cat = $("#awCat"), nm = $("#awName"), ty = $("#awType");
   cat.onchange = () => {
-    const list = S.catalogue.filter((c) => c.f.Category === cat.value);
     nm.disabled = !cat.value;
-    nm.innerHTML = `<option value="">Choose…</option>` + list.map((c) => `<option value="${esc(c.id)}">${esc(c.f.Title)}</option>`).join("");
-    updSel();
+    nm.innerHTML = awardOptions(cat.value, "");
+    remember(); updSel();
   };
   nm.onchange = () => {
-    const c = S.catalogue.find((x) => x.id === nm.value);
+    const c = current();
     if (c && P().certificateTypes.includes(c.f.CertificateType)) ty.value = c.f.CertificateType;
-    updSel();
+    remember(); updSel();
   };
   $("#awSave").onclick = async () => {
-    const c = S.catalogue.find((x) => x.id === nm.value); if (!c) return;
+    const c = current(); if (!c) return;
+    // What prints on the report card: the teacher's own title, or "Award – Month", or the catalogue name.
+    const awardName = c.f.CustomTitle ? $("#awTitle").value.replace(/\s+/g, " ").trim() : c.f.AskMonth ? `${c.f.Title} – ${$("#awMonth").value}` : c.f.Title;
     const ids = [...S.awSel];
-    const dupes = ids.filter((id) => S.awards.some((a) => a.f.StudentID === id && a.f.AwardName === c.f.Title));
-    if (dupes.length && !confirm(`${dupes.length} of these students already have "${c.f.Title}" this semester. Add it again?`)) return;
+    const dupes = ids.filter((id) => S.awards.some((a) => a.f.StudentID === id && lc(a.f.AwardName) === lc(awardName)));
+    if (dupes.length && !confirm(`${dupes.length} of these students already have "${awardName}" this semester. Add it again?`)) return;
+    if (c.f.CustomTitle) {
+      const mine = S.awards.filter((a) => a.by === S.me && a.f.Category === c.f.Category && !S.catalogue.some((x) => x.f.Title === a.f.AwardName && !x.f.CustomTitle));
+      if (mine.length + ids.length > 1 && !confirm(`The criteria say each teacher gives only ONE Teacher Award. You have already given ${mine.length}. Save anyway?`)) return;
+    }
     $("#awSave").disabled = true; $("#awSave").textContent = "Saving…";
     const url = itemsUrl(L.awards), points = $("#awPoints").value.trim(), date = $("#awDate").value;
     const res = await batch(ids.map((id) => { const s = studentById(id).f; return { method: "POST", url, body: { fields: {
       Title: id, StudentID: id, FullName: s.FullName, CalledName: s.CalledName || "", Grade: s.Grade,
-      Category: c.f.Category, AwardName: c.f.Title, CertificateType: ty.value, Points: points,
+      Category: c.f.Category, AwardName: awardName, CertificateType: ty.value, Points: points,
       ...term(), AwardDate: date ? date + "T00:00:00Z" : null, AwardedBy: S.meName, Printed: false } } }; }));
     const bad = batchFailures(res);
     await loadAwards();
-    S.awSel.clear(); render();
+    S.awSel.clear(); S.awForm.title = ""; S.awForm.points = ""; render();
     if (bad.length) flash("error", `${bad.length} award(s) could not be saved: ${bad[0]?.body?.error?.message || ""}`);
-    else flash("ok", `Saved "${c.f.Title}" for ${ids.length} student${ids.length > 1 ? "s" : ""}.`);
+    else flash("ok", `Saved "${awardName}" for ${ids.length} student${ids.length > 1 ? "s" : ""}.`);
   };
   $$("[data-del]").forEach((b) => (b.onclick = async () => {
     if (!confirm("Delete this award?")) return;
@@ -810,7 +840,7 @@ function listSpecs() {
   const specs = [
     { name: L.students, kind: "read", cols: [T("FullName"), T("CalledName"), T("CertificateName"), T("Grade"), T("Email"), T("Department"), T("Joined"), CH("Status", ["Active", "Withdrawn"])] },
     { name: L.subjects, kind: "read", cols: [T("Grade"), CH("SubjectType", ["I", "II"]), T("Teacher"), B("PrintsOnCard"), N("SortOrder")] },
-    { name: L.catalogue, kind: "read", cols: [T("Category"), T("CertificateType"), CH("Season", ["Both", "Fall", "Spring"]), B("Active"), N("SortOrder")] },
+    { name: L.catalogue, kind: "read", cols: [T("Category"), T("CertificateType"), CH("Season", ["Both", "Fall", "Spring"]), T("Criteria", true), B("AskMonth"), B("CustomTitle"), B("Active"), N("SortOrder")] },
     { name: L.settings, kind: "read", cols: [T("Json", true)] },
     { name: L.awards, kind: "entry", cols: [T("StudentID"), T("FullName"), T("CalledName"), T("Grade"), T("Category"), T("AwardName"), T("CertificateType"), T("Points"), T("Semester"), T("AcademicYear"), D("AwardDate"), T("AwardedBy"), B("Printed")] },
     { name: L.comments, kind: "entry", cols: [T("StudentID"), T("Grade"), T("Semester"), T("AcademicYear"), T("Period"), T("Comment", true)] },
@@ -1000,7 +1030,8 @@ function viewSetup(main) {
     const recs = rowsOf(wb, /choice list/i).map((r, i) => ({
       Title: clean(col(r, "Award name", "Award name (cleaned)", "Award_Name")), Category: clean(col(r, "Category")),
       CertificateType: ((t) => P().certificateTypes.find((x) => lc(x) === lc(t)) || t)(clean(col(r, "Certificate type", "Certificate_Type"))),
-      Season: ((s) => ["Fall", "Spring"].find((x) => lc(x) === lc(s)) || "Both")(clean(col(r, "Season", "Semester"))), Active: true, SortOrder: i + 1 }))
+      Season: ((s) => ["Fall", "Spring"].find((x) => lc(x) === lc(s)) || "Both")(clean(col(r, "Season", "Semester"))),
+      Criteria: clean(col(r, "Criteria")), AskMonth: /^y/i.test(col(r, "Ask for month")), CustomTitle: /^y/i.test(col(r, "Custom title")), Active: true, SortOrder: i + 1 }))
       .filter((r) => { if (!r.Title || !r.Category) return false; const k = lc(r.Category + "|" + r.Title); if (seen.has(k)) { dupes.push(r.Title); return false; } seen.add(k); return true; });
     const oddTypes = [...new Set(recs.map((r) => r.CertificateType).filter((t) => !P().certificateTypes.includes(t)))];
     const keyOf = (f) => lc(clean(f.Category) + "|" + clean(f.Title));
@@ -1097,7 +1128,7 @@ function bindYearTools() {
         <div><button class="btn" id="naAdd">Add award</button></div>
       </div>`;
     const patch = async (id, fields, undo) => {
-      try { await graph("PATCH", `${itemsUrl(L.catalogue)}/${id}/fields`, fields); Object.assign(all.find((c) => c.id === id).f, fields); S.catalogue = all.filter((x) => x.f.Active !== false && (!x.f.Season || x.f.Season === "Both" || x.f.Season === P().semester)); flash("ok", "Saved."); }
+      try { await graph("PATCH", `${itemsUrl(L.catalogue)}/${id}/fields`, fields); Object.assign(all.find((c) => c.id === id).f, fields); S.catalogue = teacherCatalogue(); flash("ok", "Saved."); }
       catch (e) { undo(); flash("error", e.message); }
     };
     $$("[data-active]").forEach((c) => (c.onchange = () => patch(c.dataset.active, { Active: c.checked }, () => (c.checked = !c.checked))));
@@ -1109,7 +1140,7 @@ function bindYearTools() {
       try {
         const it = await graph("POST", itemsUrl(L.catalogue), { fields: { Title: name, Category: cat, CertificateType: $("#naType").value, Season: $("#naSeason").value, Active: true,
           SortOrder: Math.max(0, ...all.map((c) => c.f.SortOrder || 0)) + 1 } });
-        all.push(norm(it)); S.catalogue = all.filter((x) => x.f.Active !== false && (!x.f.Season || x.f.Season === "Both" || x.f.Season === P().semester));
+        all.push(norm(it)); S.catalogue = teacherCatalogue();
         S.mcCat = cat; bindYearTools(); flash("ok", `Added "${name}".`);
       } catch (e) { flash("error", e.message); }
     };

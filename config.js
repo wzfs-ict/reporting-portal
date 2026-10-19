@@ -110,5 +110,7 @@ window.APP_CONFIG = {
     "Certificate of Distinction",
     "Certificate of Participation",
     "Teacher Award",
+    "External Award",
+    "Service Points",                // goes to the service points section of the report card
   ],
 };
