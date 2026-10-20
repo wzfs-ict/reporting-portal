@@ -37,6 +37,17 @@ const isMidterm = () => P().period === "Midterm";
 const termLabel = () => `${P().semester} ${P().academicYear} · ${P().period}`;
 const marksListName = (g) => L.marksPrefix + g;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// SheetJS is large; fetch it only when a screen needs spreadsheets (retries once, for patchy connections).
+let xlsxLoading = null;
+function loadXlsx() {
+  if (window.XLSX) return Promise.resolve();
+  const once = () => new Promise((resolve, reject) => {
+    const s = document.createElement("script"); s.src = "vendor/xlsx-0.18.5.full.min.js";
+    s.onload = resolve; s.onerror = () => { s.remove(); reject(new Error("Couldn't load the spreadsheet tool. Check the connection and try again.")); };
+    document.head.appendChild(s);
+  });
+  return (xlsxLoading = xlsxLoading || once().catch(() => once()).catch((e) => { xlsxLoading = null; throw e; }));
+}
 function notice(kind, html) { return `<div class="notice ${kind}">${html}</div>`; }
 function flash(kind, msg) {
   const el = $("#flash"); if (!el) return;
@@ -826,9 +837,11 @@ function viewExport(main) {
     </div>
     <p class="small muted" style="margin-top:12px">Duplicate subject rows mean two teachers created the same subject for the same student. Open the Advisor view to see who, and remove one before printing.</p>`;
   $("#reload").onclick = async () => { $("#reload").textContent = "Loading…"; await loadAll(); render(); flash("ok", "Up to date."); };
-  $$("[data-g]").forEach((b) => (b.onclick = () => download(sheetBook(marksExportRows(b.dataset.g), "Marks"), `Marks_${b.dataset.g}_${tag}.xlsx`)));
-  $("#allMarks").onclick = () => download(sheetBook(P().grades.flatMap(marksExportRows), "Marks"), `Marks_AllGrades_${tag}.xlsx`);
-  $("#awardsFile").onclick = () => {
+  loadXlsx().catch(() => {});   // warm it up while the admin reads the table
+  const withXlsx = (fn) => async () => { try { await loadXlsx(); fn(); } catch (e) { flash("error", e.message); } };
+  $$("[data-g]").forEach((b) => (b.onclick = withXlsx(() => download(sheetBook(marksExportRows(b.dataset.g), "Marks"), `Marks_${b.dataset.g}_${tag}.xlsx`))));
+  $("#allMarks").onclick = withXlsx(() => download(sheetBook(P().grades.flatMap(marksExportRows), "Marks"), `Marks_AllGrades_${tag}.xlsx`));
+  $("#awardsFile").onclick = withXlsx(() => {
     const rows = S.awards.slice().sort((a, b) => (a.f.Grade || "").localeCompare(b.f.Grade || "") || (a.f.FullName || "").localeCompare(b.f.FullName || ""));
     // Column names chosen to match wzfs-report-card's awards parser (Award before any other "award" column).
     const forGenerator = rows.map((a) => { const s = studentById(a.f.StudentID)?.f || a.f; return {
@@ -840,7 +853,7 @@ function viewExport(main) {
     const wb = sheetBook(forGenerator, "Awards");
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(printList), "Certificate print list");
     download(wb, `Awards_${tag}.xlsx`);
-  };
+  });
 }
 
 // ── Setup (admin) ────────────────────────────────────────────
@@ -864,7 +877,8 @@ function listSpecs() {
     N("Score", 0, 100, "one"), N("Behaviour", 1, 4, "none"), T("Remark", true), B("Concern"), B("Submitted"), T("TeacherName")] });
   return specs;
 }
-function readSheet(file) {
+async function readSheet(file) {
+  await loadXlsx();
   return new Promise((resolve, reject) => {
     const fr = new FileReader();
     fr.onload = () => { try { resolve(XLSX.read(new Uint8Array(fr.result), { type: "array" })); } catch (e) { reject(e); } };
@@ -1219,6 +1233,55 @@ const PDE_VALUES = [
     r: ["Disengaged; lacks commitment to physical health.", "Participates but shows little initiative.", "Committed to personal fitness; encourages others.", "Advocates for health; leads initiatives in physical wellness."] },
 ];
 const PDE_SECTIONS = [["overview", "Overview"], ["cycle", "How the year works"], ["roles", "Who does what"], ["screens", "Screens (preview)"], ["values", "Core values rubric"], ["teacher", "Teacher goals"], ["questions", "Questions for the committee"]];
+const PDE_QUESTIONS = [
+  { q: "One goal per subject for the semester, or a new goal every month? And what happens when a goal is reached?",
+    why: "This sets how much bobaes and teachers enter, and what keeps a bobae motivated once they hit their target.",
+    options: [
+      "<b>A.</b> One goal per subject <b>per semester</b>, checked every month (fewer entries; monthly scores show the path).",
+      "<b>B.</b> A new goal <b>every month</b> (more entries; very short-term).",
+      "<b>Which subjects?</b> Chinese, English (all types), Maths, Science. Include IGCSE/AS versions, Social Studies and History?",
+      "<b>Goal reached early:</b> raise the target (a stretch goal), keep it and aim to stay there, and/or count towards the <i>PDE Goal Master Award</i>?",
+      "<b>Goal not reached:</b> carry it into next semester with a new action plan, or start fresh?" ],
+    suggest: "A, for the core subjects only. When a goal is reached, the bobae sets a stretch target with their teacher; reaching it twice counts towards the Goal Master Award." },
+  { q: "What is the \"monthly score\"?",
+    options: ["A monthly test, or the teacher's running average for the month?", "Is the December score the same number as the report card mark, so it's only typed once?"] },
+  { q: "Who sets the target, and can it change?",
+    options: ["The bobae alone, the bobae with the teacher, or the teacher?", "Can the target change during the semester (for example after the first month)?"] },
+  { q: "How do we measure achievement?",
+    why: "The achievement rate shows how close a bobae is to their target, as a percentage.",
+    body: `<p class="small"><b>Achievement rate = this month's score ÷ target score × 100.</b> Examples for a bobae whose Maths target is <b>85%</b>:</p>
+      <div class="table-wrap" style="max-width:520px"><table><thead><tr><th>Month's score</th><th class="num">Achievement rate</th><th>Band (proposed)</th></tr></thead><tbody>
+        <tr><td>75%</td><td class="num">88%</td><td><span class="badge bad">Needs improvement</span></td></tr>
+        <tr><td>80%</td><td class="num">94%</td><td><span class="badge warn">Satisfactory</span></td></tr>
+        <tr><td>85%</td><td class="num">100%</td><td><span class="badge ok">Excellent: goal met</span></td></tr>
+        <tr><td>92%</td><td class="num">108%</td><td><span class="badge ok">Excellent: goal beaten</span></td></tr>
+      </tbody></table></div>`,
+    options: ["Are these bands right: <b>Excellent</b> 100% or more, <b>Satisfactory</b> 90–99%, <b>Needs improvement</b> below 90%?",
+      "Is a goal <b>met</b> when the final (end-of-semester) score reaches the target, or when the average across the months does?",
+      "Should very easy or impossible targets be checked, e.g. the teacher approves any target below the bobae's current score or at 100%?"] },
+  { q: "Core values: how often?",
+    options: ["Monthly, or once a semester?", "Subject teachers rate Responsibility and Respect; advisors rate all five. Is that right?"] },
+  { q: "Teacher goals (ICT, Art, PE …)",
+    options: ["Who reviews them (division head, VP)?", "How is \"achieved\" shown at the end of the year: evidence, results, a short reflection?"] },
+  { q: "Primary (G1–G5)",
+    options: ["Which subjects have goals?", "Does the advisor enter everything for the bobae, or do G4–G5 start entering their own?"] },
+  { q: "Parents: how do they see their own child's progress, and only their own child's?",
+    why: "Parents must never see another bobae's work. Here are the realistic ways to do that, from simplest to most complete.",
+    options: [
+      "<b>A. Printed or PDF progress page</b> each month or semester, sent by the advisor (for example on WeChat). No online access, so no risk. Parent feedback comes back to the advisor.",
+      "<b>B. Through the bobae's own login at home.</b> The parent looks with their child. Nothing new to set up, but it relies on the family sharing the login.",
+      "<b>C. A parent list.</b> The Admin Office keeps a list of <i>Student ID → parent email</i>. Parents sign in with a Microsoft account, and the app shows only the children linked to that email. SharePoint enforces it: each bobae's PDE record is shared only with the parents on the list. This is the most complete option, but every parent needs a Microsoft account and we need to keep the list up to date." ],
+    suggest: "Start the pilot with A (and B for families who want it). Move to C once the Admin Office has a parent email list, because the same list can be reused for other parent communication." },
+  { q: "What should the Director's overview show?",
+    body: `<p class="small">Proposed, by grade and for the whole school:</p>`,
+    options: ["<b>Goals set</b> (how many bobaes have a goal in each subject)", "<b>Achievement rate</b> (average, by grade and by subject)",
+      "<b>Goals met</b> (out of goals set)", "<b>Subject ranking</b> (subjects where the most and the fewest goals are being met)",
+      "<b>Help needed</b> (bobaes off track in two or more subjects, or two months in a row)"],
+    suggest: "Confirm these five, and add anything else the Chairman wants to see. A preview is on the Screens page." },
+  { q: "Teachers' view: should PDE print as page 3 of the report card?",
+    why: "ICT and leadership support printing it. We'd like to hear from teachers before deciding.",
+    options: ["Yes, from which semester?", "Or keep PDE separate from the report card (a PDE page of its own)?"] },
+];
 function pdeBand(rate) { return rate >= 100 ? ["Excellent", "ok"] : rate >= 90 ? ["Satisfactory", "warn"] : ["Needs improvement", "bad"]; }
 function pdeGoalCard(subject, target, months, plan) {
   const done = months.filter((m) => m[1] !== null);
@@ -1314,6 +1377,12 @@ function viewPde(main) {
       <div class="table-wrap"><table>
         <thead><tr><th>Grade</th><th class="num">Goals on track</th><th class="num">Off track</th><th class="num">Core values /20</th></tr></thead>
         <tbody>${[["G6", 74, 2, 15.8], ["G7", 68, 3, 14.9], ["G8", 70, 4, 15.1], ["G9-1", 66, 5, 14.6]].map(([g, a, b, c]) => `<tr><td>${g}</td><td class="num">${a}%</td><td class="num">${b}</td><td class="num">${c}</td></tr>`).join("")}</tbody></table></div>
+      <div class="two-col" style="grid-template-columns:1fr 1fr">
+        <div><h3>Subject ranking: goals met</h3><div class="table-wrap"><table><thead><tr><th>#</th><th>Subject</th><th class="num">Goals met</th><th class="num">Avg rate</th></tr></thead><tbody>
+          ${[["Chinese", 78, 101], ["Science", 72, 98], ["Maths", 64, 95], ["English", 51, 91]].map(([s, m, r], i) => `<tr><td>${i + 1}</td><td>${s}</td><td class="num">${m}%</td><td class="num">${r}%</td></tr>`).join("")}</tbody></table></div></div>
+        <div><h3>Help needed</h3><div class="table-wrap"><table><thead><tr><th>Bobae</th><th>Grade</th><th>Off track in</th></tr></thead><tbody>
+          ${[["Coleta", "G8", "English, Science"], ["Ethan", "G9-1", "Maths, English"], ["Lily", "G9-1", "Maths (2 months)"]].map(([n, g, s]) => `<tr><td>${n}</td><td>${g}</td><td class="small">${s}</td></tr>`).join("")}</tbody></table></div></div>
+      </div>
       <p class="small muted">Parents would see the same cards as their child, plus a box to reply.</p>`,
     values: `
       <h2>Core values rubric</h2>
@@ -1335,21 +1404,18 @@ function viewPde(main) {
           <p class="small muted">End of year: the teacher records whether the goal was met, with evidence.</p></div>`).join("")}`,
     questions: `
       <h2>Questions for the committee</h2>
-      <p class="small muted">These decide how PDE gets built. Each answer can be a one-line decision.</p>
-      <ol class="steps small">
-        <li><b>Which subjects have monthly goals?</b> Chinese, English (all types), Maths, Science. What about IGCSE/AS versions, Social Studies and History?</li>
-        <li><b>What is the "monthly score"?</b> A monthly test, or the teacher's running average? Is the December score the same as the report card mark?</li>
-        <li><b>Who sets the target?</b> The bobae alone, or agreed with the teacher? Can it change during the year?</li>
-        <li><b>Achievement rate and bands:</b> is latest ÷ target right? What are the thresholds for Excellent, Satisfactory and Needs improvement?</li>
-        <li><b>Core values:</b> monthly or once a semester? Subject teachers rate Responsibility and Respect; advisors rate all five. Is that right?</li>
-        <li><b>Teacher goals</b> (ICT, Art, PE …): who reviews them, and how is "achieved" measured?</li>
-        <li><b>G1–G5:</b> which subjects, and does the advisor enter everything?</li>
-        <li><b>Parents:</b> an online view with a sign-in, or a printed page each month or semester? Where does parent feedback come from?</li>
-        <li><b>Director overview:</b> which three numbers matter most?</li>
-        <li><b>Student access:</b> can every G6–G12 bobae sign in with their school account? (G11–G12 Teams access is still incomplete.)</li>
-        <li><b>Report card:</b> should PDE print as page 3, and from which semester?</li>
-      </ol>
-      <p class="small">Proposed timing: the committee answers these in <b>Fall 2026</b>; PDE opens for one grade as a pilot, then for everyone in <b>Spring 2027</b>.</p>`,
+      <p class="small muted">These decide how PDE gets built. For each one, pick an option (or suggest a better one). A one-line answer is enough.</p>
+      ${PDE_QUESTIONS.map((x, i) => `
+        <div class="card">
+          <h3>${i + 1}. ${x.q}</h3>
+          ${x.why ? `<p class="small muted" style="margin-top:0">${x.why}</p>` : ""}
+          ${x.body || ""}
+          ${x.options ? `<ul class="small">${x.options.map((o) => `<li>${o}</li>`).join("")}</ul>` : ""}
+          ${x.suggest ? `<p class="small"><span class="badge info">Suggestion</span> ${x.suggest}</p>` : ""}
+        </div>`).join("")}
+      <p class="small">Proposed timing: the committee answers these in <b>Fall 2026</b>; PDE opens for one grade as a pilot, then for everyone in <b>Spring 2027</b>.</p>
+      ${isAdmin() ? `<div class="card" style="border-style:dashed"><h3>ICT notes <span class="badge">Only admins see this</span></h3>
+        <p class="small"><b>Student sign-in:</b> every bobae has a Microsoft school account, so G6–G12 can sign in to PDE. Before the pilot: run a short sign-in training per class and standardise account names so they're easy to remember (the current pattern is <code>fullname.calledname + graduation year</code>, e.g. <code>eunseongchoi.eden2033@</code>). Check G11–G12 Teams access at the same time.</p></div>` : ""}`,
   }[sec];
   main.innerHTML = `
     ${notice("warn", "<b>Work in progress.</b> Academic Purpose-Driven Education is being designed with a committee of teachers. These pages are a preview to discuss; nothing here is saved, and all numbers are examples.")}

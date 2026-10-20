@@ -184,7 +184,8 @@
 
 <!-- Libraries are kept in /vendor (pinned versions) so nothing loads from an overseas CDN. -->
 <script src="vendor/msal-browser-3.27.0.min.js"></script>
-<script src="vendor/xlsx-0.18.5.full.min.js"></script>
+<!-- vendor/xlsx-0.18.5.full.min.js (880 KB) is loaded on demand by app.js, only for Setup imports and Export. -->
+
 <script src="config.js"></script>
 <script src="app.js"></script>
 </body>
