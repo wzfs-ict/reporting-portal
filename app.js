@@ -189,6 +189,9 @@ const advisorName = (g) => (P().advisors[g] && P().advisors[g].name) || "";
 function tabsFor() {
   if (S.viewAs === "parent") return [["parent", "Parent view"]];
   if (S.viewAs === "student" || (S.studentMode && !S.viewAs)) return [["mygoals", "My goals"]];
+  // Admin team members who don't teach (Ryan, Peter, Keating…) only need report cards.
+  const teaches = isAdmin() || (P().staff || []).map(lc).includes(S.me) || advisorGrades().length > 0;
+  if (isReportTeam() && !teaches) return [["export", "Report cards"], ...(viewGrades().length ? [["advisor", "Advisor view"]] : []), ["help", "Help"]];
   const t = [["classes", "My classes"], ["awards", "Awards"]];
   if (viewGrades().length) t.push(["advisor", headGrades().length && !advisorGrades().length && !isLeader() ? "Division view" : "Advisor view"]);
   if (isReportTeam()) t.push(["export", "Report cards"]);
@@ -892,7 +895,8 @@ function marksExportRows(g) {
     const comment = (S.comments.find((c) => c.f.StudentID === id && c.f.Grade === g)?.f.Comment || "").trim();
     const mine = rows.filter((r) => r.f.StudentID === id)
       .sort((a, b) => (a.f.SubjectType || "I").localeCompare(b.f.SubjectType || "I") || subjOrder(a) - subjOrder(b));
-    const base = { Student_ID: id, Student_Name: st.f.FullName, Called_Name: st.f.CalledName || "", Grade: g, Advisor: advisorName(g), Grading_Period: `${P().semester} Semester` };
+    const base = { Student_ID: id, Student_Name: st.f.FullName, Called_Name: st.f.CalledName || "", DOB: st.f.DOB || "", Grade: g, Advisor: advisorName(g),
+      Department: st.f.Department || "", Grading_Period: `${P().semester} Semester` };
     if (!mine.length) { if (comment) out.push({ ...base, Teacher_Comments: comment }); continue; }
     for (const r of mine) out.push({ ...base,
       Subject_Name: subjectDisplay(r.f), Subject_Type: r.f.SubjectType || "I",
@@ -913,54 +917,109 @@ function gradeChecks(g) {
 }
 function download(wb, name) { XLSX.writeFile(wb, name); }
 function sheetBook(rows, sheetName) { const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), sheetName); return wb; }
+// Awards in the column layout the generator reads (Student ID first, so it matches exactly).
+function awardsForGenerator(grade) {
+  return S.awards.filter((a) => !grade || a.f.Grade === grade)
+    .sort((a, b) => (a.f.Grade || "").localeCompare(b.f.Grade || "") || (a.f.FullName || "").localeCompare(b.f.FullName || ""))
+    .map((a) => { const s = studentById(a.f.StudentID)?.f || a.f; return {
+      Student_ID: a.f.StudentID, Student_Name: s.FullName, Grade: a.f.Grade, Award: a.f.AwardName,
+      Recognition: a.f.CertificateType, Points: a.f.Points || "", Date: (a.f.AwardDate || "").slice(0, 10) }; });
+}
+const yearLong = () => { const [a, b] = P().academicYear.split("-"); return b ? `${a}–${a.slice(0, 2)}${b}` : P().academicYear; };
+// Hand one grade to the report card generator (same site, /cards/) — no files downloaded or uploaded.
+// The generator reads the hand-off once and deletes it straight away.
+function openGenerator(g) {
+  const roster = rosterFor(g);
+  const payload = { createdAt: Date.now(), by: S.meName, marks: marksExportRows(g), awards: awardsForGenerator(g), attendance: S.attendance ? S.attendance.rows : null,
+    meta: { grade: g, advisor: advisorName(g), department: roster[0]?.f.Department || "", gradingPeriod: `${P().semester} Semester`, schoolYear: yearLong() } };
+  try { localStorage.setItem("wzfs_reporting_handoff_v1", JSON.stringify(payload)); }
+  catch (e) { return flash("error", "Your browser blocked the hand-off (storage full or private mode). Use “Download files instead” below."); }
+  const w = window.open("cards/index.html", "_blank");
+  if (!w) flash("warn", "Your browser blocked the new tab. Allow pop-ups for this site, then click Generate again.");
+}
 function viewExport(main) {
   const tag = `${P().semester}${P().academicYear.slice(0, 4)}`;
+  const grades = P().grades.filter((g) => rosterFor(g).length);
+  const totals = { certs: 0, points: 0 };
+  const rows = grades.map((g) => {
+    const c = gradeChecks(g), n = rosterFor(g).length;
+    const aw = S.awards.filter((a) => a.f.Grade === g), certs = aw.filter((a) => !a.f.Points).length, pts = aw.length - certs;
+    totals.certs += certs; totals.points += pts;
+    const ready = c.classes > 0 && !c.open.length && !c.missing && c.comments === n && !c.dupes.length;
+    return { g, c, n, certs, pts, ready };
+  });
+  const readyCount = rows.filter((r) => r.ready).length;
+  const restricted = new Set(teacherCatalogue().filter(advisorOnly).map((c) => lc(c.f.Category + "|" + c.f.Title)));
+  const odd = S.awards.filter((a) => restricted.has(lc(a.f.Category + "|" + a.f.AwardName)) && !advisorEmails(a.f.Grade).includes(a.by) && !P().admins.map(lc).includes(a.by));
+  const byCat = Object.entries(S.awards.reduce((m, a) => ((m[a.f.Category || "Other"] = (m[a.f.Category || "Other"] || 0) + 1), m), {})).sort((a, b) => b[1] - a[1]);
   main.innerHTML = `
-    <h1>Export for the report card generator</h1>
-    <p class="lede">Download each grade's marks file and the awards file, then upload them with the attendance sheet at
-      <a href="https://wzfs-report-card.vercel.app/" target="_blank" rel="noopener">wzfs-report-card.vercel.app</a>.</p>
+    <h1>Report cards</h1>
+    <p class="lede"><span class="badge info">${esc(P().semester)} ${esc(P().academicYear)}</span> Check each grade is complete, then click <b>Generate</b>. The report cards open in a new tab, ready to check and print. No files to download or upload.</p>
     <div id="flash"></div>
-    ${isMidterm() ? notice("warn", `The reporting period is <b>Midterm</b>, so these files hold mid-term marks. For report cards, switch the period to <b>Final</b> on the Setup tab.`) : ""}
-    <p><button class="btn" id="reload">↻ Reload latest data</button></p>
-    <div class="table-wrap"><table>
-      <thead><tr><th>Grade</th><th class="num">Students</th><th class="num">Classes</th><th>Not submitted</th><th class="num">Blank marks</th><th class="num">Comments</th><th>Warnings</th><th></th></tr></thead>
-      <tbody>${P().grades.map((g) => { const c = gradeChecks(g); return `
-        <tr><td><b>${esc(g)}</b></td><td class="num">${rosterFor(g).length}</td><td class="num">${c.classes}</td>
-        <td class="small">${c.open.length ? c.open.map((x) => esc(x.subject)).join(", ") : `<span class="badge ok">All in</span>`}</td>
-        <td class="num">${c.missing || ""}</td><td class="num">${c.comments} / ${rosterFor(g).length}</td>
-        <td class="small">${c.dupes.length ? `<span class="badge bad">${c.dupes.length} duplicate subject rows</span> ` : ""}${c.notInRoster.length ? `<span class="badge bad">${c.notInRoster.length} rows not in roster</span>` : ""}</td>
-        <td><button class="btn small" data-g="${esc(g)}" ${c.rows || c.comments ? "" : "disabled"}>Marks file</button></td></tr>`; }).join("")}
-      </tbody></table></div>
-    ${(() => {
-      // Advisor-only awards that were saved by someone other than that grade's advisors or an admin (e.g. typed straight into SharePoint).
-      const restricted = new Set(teacherCatalogue().filter(advisorOnly).map((c) => lc(c.f.Category + "|" + c.f.Title)));
-      const odd = S.awards.filter((a) => restricted.has(lc(a.f.Category + "|" + a.f.AwardName)) && !advisorEmails(a.f.Grade).includes(a.by) && !P().admins.map(lc).includes(a.by));
-      return odd.length ? notice("warn", `${odd.length} advisor-only award${odd.length > 1 ? "s were" : " was"} saved by someone who isn't that grade's advisor: `
-        + odd.slice(0, 8).map((a) => `${esc(a.f.CalledName || a.f.FullName)} (${esc(a.f.Grade)}): ${esc(a.f.AwardName)}, by ${esc(a.byName || a.f.AwardedBy)}`).join("; ") + (odd.length > 8 ? "…" : "") + ". Check with the advisor before printing.") : "";
-    })()}
-    <div class="row">
-      <button class="btn primary" id="awardsFile">Awards file (all grades)</button>
-      <button class="btn" id="allMarks">All grades in one marks file</button>
+    ${isMidterm() ? notice("warn", `The reporting period is <b>Midterm</b>, so these are mid-term marks. For end-of-semester report cards, ICT switches the period to <b>Final</b>.`) : ""}
+    <div class="stats">
+      <div class="stat"><div class="k">Grades ready</div><div class="v">${readyCount} / ${rows.length}</div></div>
+      <div class="stat"><div class="k">Certificates</div><div class="v">${totals.certs}</div></div>
+      <div class="stat"><div class="k">Service points entries</div><div class="v">${totals.points}</div></div>
+      <div class="stat"><div class="k">Attendance</div><div class="v" style="font-size:15px">${S.attendance ? `✓ ${esc(S.attendance.name)}<div class="small muted">${S.attendance.rows.length} rows</div>` : `<span class="muted">Not added</span>`}</div></div>
     </div>
-    <p class="small muted" style="margin-top:12px">Duplicate subject rows mean two teachers created the same subject for the same student. Open the Advisor view to see who, and remove one before printing.</p>`;
+    <div class="card">
+      <h3>Attendance sheet</h3>
+      <p class="small muted" style="margin-top:0">One Excel file for all students (from the attendance system). It's used for every grade you generate in this session, and isn't saved anywhere.</p>
+      <div class="row"><label style="max-width:360px"><span>Attendance file</span><input type="file" id="attFile" accept=".xlsx,.xls,.csv"></label>
+        ${S.attendance ? `<button class="btn small" id="attClear">Remove</button>` : ""}<button class="btn small" id="reload">↻ Reload latest marks and awards</button></div>
+    </div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Grade</th><th class="num">Bobaes</th><th>Marks</th><th class="num">Advisor comments</th><th>Awards</th><th>Status</th><th></th></tr></thead>
+      <tbody>${rows.map(({ g, c, n, certs, pts, ready }) => `
+        <tr><td><b>${esc(g)}</b><div class="small muted">${esc(advisorName(g))}</div></td><td class="num">${n}</td>
+          <td class="small">${!c.classes ? `<span class="badge">No classes yet</span>` : c.open.length ? `<span class="badge warn">${c.classes - c.open.length} of ${c.classes} subjects in</span><div class="muted">Waiting: ${c.open.map((x) => esc(x.subject)).join(", ")}</div>` : `<span class="badge ok">All ${c.classes} subjects in</span>`}
+            ${c.missing ? `<div><span class="badge warn">${c.missing} blank marks</span></div>` : ""}${c.dupes.length ? `<div><span class="badge bad">${c.dupes.length} duplicate subject rows</span></div>` : ""}</td>
+          <td class="num">${c.comments === n ? `<span class="badge ok">${c.comments} / ${n}</span>` : `${c.comments} / ${n}`}</td>
+          <td class="small">${certs} certificates<div class="muted">${pts} service points</div></td>
+          <td>${ready ? `<span class="badge ok">Ready</span>` : `<span class="badge warn">Not complete</span>`}</td>
+          <td><button class="btn ${ready ? "primary" : ""} small" data-gen="${esc(g)}" ${c.rows || c.comments ? "" : "disabled"}>Generate →</button></td></tr>`).join("")}
+      </tbody></table></div>
+    ${odd.length ? notice("warn", `${odd.length} advisor-only award${odd.length > 1 ? "s were" : " was"} saved by someone who isn't that grade's advisor: `
+      + odd.slice(0, 8).map((a) => `${esc(a.f.CalledName || a.f.FullName)} (${esc(a.f.Grade)}): ${esc(a.f.AwardName)}, by ${esc(a.byName || a.f.AwardedBy)}`).join("; ") + (odd.length > 8 ? "…" : "") + ". Check with the advisor before printing.") : ""}
+    <details class="card"><summary>Awards collected this semester: ${S.awards.length} in ${byCat.length} categories</summary>
+      <div class="table-wrap" style="margin-top:10px;max-width:520px"><table><thead><tr><th>Category</th><th class="num">Given</th></tr></thead><tbody>
+        ${byCat.map(([k, v]) => `<tr><td>${esc(k)}</td><td class="num">${v}</td></tr>`).join("") || `<tr><td colspan="2" class="muted">None yet.</td></tr>`}
+      </tbody></table></div>
+      <p><button class="btn small" id="printList">Certificate print list (Excel)</button></p>
+    </details>
+    <details class="card"><summary>Download files instead</summary>
+      <p class="small muted">Only needed if the Generate button can't open the report cards (for example, if pop-ups are blocked). Upload these at the old generator.</p>
+      <div class="row">${grades.map((g) => `<button class="btn small" data-g="${esc(g)}">Marks ${esc(g)}</button>`).join("")}</div>
+      <p class="row" style="margin-top:8px"><button class="btn small" id="awardsFile">Awards file (all grades)</button><button class="btn small" id="allMarks">All grades in one marks file</button></p>
+    </details>
+    <p class="small muted">"Ready" means every subject is submitted, no marks are blank, every bobae has an advisor comment, and no subject is entered twice. You can still generate a grade that isn't ready, for a check copy.</p>`;
   $("#reload").onclick = async () => { $("#reload").textContent = "Loading…"; await loadAll(); render(); flash("ok", "Up to date."); };
-  loadXlsx().catch(() => {});   // warm it up while the admin reads the table
+  $("#attFile").onchange = async (e) => {
+    const f = e.target.files[0]; if (!f) return;
+    try { const wb = await readSheet(f); S.attendance = { name: f.name, rows: XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: "" }) }; render(); flash("ok", `Attendance added: ${S.attendance.rows.length} rows.`); }
+    catch (err) { flash("error", "Couldn't read the attendance file: " + err.message); }
+  };
+  const ac = $("#attClear"); if (ac) ac.onclick = () => { S.attendance = null; render(); };
+  $$("[data-gen]").forEach((b) => (b.onclick = () => {
+    const r = rows.find((x) => x.g === b.dataset.gen);
+    if (!r.ready && !confirm(`${r.g} isn't complete yet${r.c.open.length ? ` (waiting for ${r.c.open.length} subject${r.c.open.length > 1 ? "s" : ""})` : ""}. Generate a check copy anyway?`)) return;
+    if (!S.attendance && !confirm("No attendance sheet added. Generate without attendance?")) return;
+    openGenerator(r.g);
+  }));
+  loadXlsx().catch(() => {});   // warm it up for the attendance file and downloads
   const withXlsx = (fn) => async () => { try { await loadXlsx(); fn(); } catch (e) { flash("error", e.message); } };
   $$("[data-g]").forEach((b) => (b.onclick = withXlsx(() => download(sheetBook(marksExportRows(b.dataset.g), "Marks"), `Marks_${b.dataset.g}_${tag}.xlsx`))));
   $("#allMarks").onclick = withXlsx(() => download(sheetBook(P().grades.flatMap(marksExportRows), "Marks"), `Marks_AllGrades_${tag}.xlsx`));
+  const printList = () => S.awards.filter((a) => !a.f.Points).map((a) => ({
+    Grade: a.f.Grade, Student_ID: a.f.StudentID, Certificate_Name: studentById(a.f.StudentID)?.f.CertificateName || a.f.FullName,
+    Award: a.f.AwardName, Certificate_Type: a.f.CertificateType, Given_By: a.byName || a.f.AwardedBy, Printed: a.f.Printed ? "Yes" : "No" }));
   $("#awardsFile").onclick = withXlsx(() => {
-    const rows = S.awards.slice().sort((a, b) => (a.f.Grade || "").localeCompare(b.f.Grade || "") || (a.f.FullName || "").localeCompare(b.f.FullName || ""));
-    // Column names chosen to match wzfs-report-card's awards parser (Award before any other "award" column).
-    const forGenerator = rows.map((a) => { const s = studentById(a.f.StudentID)?.f || a.f; return {
-      Student_ID: a.f.StudentID, Student_Name: s.FullName, Grade: a.f.Grade, Award: a.f.AwardName,
-      Recognition: a.f.CertificateType, Points: a.f.Points || "", Date: (a.f.AwardDate || "").slice(0, 10) }; });
-    const printList = rows.filter((a) => !a.f.Points).map((a) => ({
-      Grade: a.f.Grade, Student_ID: a.f.StudentID, Certificate_Name: studentById(a.f.StudentID)?.f.CertificateName || a.f.FullName,
-      Award: a.f.AwardName, Certificate_Type: a.f.CertificateType, Given_By: a.byName || a.f.AwardedBy, Printed: a.f.Printed ? "Yes" : "No" }));
-    const wb = sheetBook(forGenerator, "Awards");
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(printList), "Certificate print list");
+    const wb = sheetBook(awardsForGenerator(), "Awards");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(printList()), "Certificate print list");
     download(wb, `Awards_${tag}.xlsx`);
   });
+  $("#printList").onclick = withXlsx(() => download(sheetBook(printList(), "Certificate print list"), `Certificates_${tag}.xlsx`));
 }
 
 // ── Setup (admin) ────────────────────────────────────────────
@@ -972,7 +1031,7 @@ const D = (name) => ({ name, dateTime: { format: "dateOnly" } });
 // kind: "read" = staff read only; "entry" = staff contribute, item-level privacy; "marks" = entry + advisor Design
 function listSpecs() {
   const specs = [
-    { name: L.students, kind: "read", cols: [T("FullName"), T("CalledName"), T("CertificateName"), T("Grade"), T("Email"), T("Department"), T("Joined"), CH("Status", ["Active", "Withdrawn"])] },
+    { name: L.students, kind: "read", cols: [T("FullName"), T("CalledName"), T("CertificateName"), T("Grade"), T("Email"), T("Department"), T("Joined"), CH("Status", ["Active", "Withdrawn"]), T("DOB")] },
     { name: L.subjects, kind: "read", cols: [T("Grade"), CH("SubjectType", ["I", "II"]), T("Teacher"), B("PrintsOnCard"), N("SortOrder")] },
     { name: L.catalogue, kind: "read", cols: [T("Category"), T("CertificateType"), CH("Season", ["Both", "Fall", "Spring"]), T("Criteria", true), B("AskMonth"), B("CustomTitle"), T("GivenBy"), B("Active"), N("SortOrder")] },
     { name: L.settings, kind: "read", cols: [T("Json", true)] },
@@ -1129,7 +1188,8 @@ function viewSetup(main) {
     const recs = rowsOf(wb, /student/i).map((r) => ({
       Title: col(r, "Student_ID", "StudentID", "ID"), FullName: col(r, "Full_Name", "Name"), CalledName: col(r, "Called_Name", "Nickname"),
       CertificateName: col(r, "Certificate_Name"), Grade: col(r, "Grade"), Email: lc(col(r, "Email")), Department: col(r, "Department"),
-      Joined: col(r, "Joined"), Status: col(r, "Status") === "Withdrawn" ? "Withdrawn" : "Active" })).filter((r) => r.Title && r.FullName);
+      Joined: col(r, "Joined"), Status: col(r, "Status") === "Withdrawn" ? "Withdrawn" : "Active",
+      ...((d) => d ? { DOB: d } : {})(col(r, "DOB", "Date_of_Birth", "Date of birth", "BOD")) })).filter((r) => r.Title && r.FullName);
     const unknownGrades = [...new Set(recs.map((r) => r.Grade).filter((g) => !P().grades.includes(g)))];
     const dupes = [...new Set(recs.map((r) => r.Title).filter((id, i, a) => a.indexOf(id) !== i))];
     if (dupes.length) throw new Error(`The same Student ID appears more than once: ${dupes.map((id) => `${id} (${recs.filter((r) => r.Title === id).map((r) => r.Grade).join(" and ")})`).join(", ")}. Fix the workbook so each bobae has one row, then import again. Nothing was imported.`);
