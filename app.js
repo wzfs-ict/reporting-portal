@@ -623,11 +623,14 @@ const MONTHS = ["January", "February", "March", "April", "May", "June", "July", 
 // Teachers see every active award all year; each is labelled with the semester it is usually given in.
 const teacherCatalogue = () => (S.catalogueAll || []).filter((x) => x.f.Active !== false);
 const seasonLabel = (s) => (s === "Fall" || s === "Spring" ? s : "All year");
+// Advisor-only awards (criteria document): only the bobae's grade advisor / co-advisor, or an admin, may give them.
+const advisorOnly = (c) => c && c.f.GivenBy === "Advisors";
+const mayGive = (c, grade) => !advisorOnly(c) || isAdmin() || advisorEmails(grade).includes(S.me);
 function awardOptions(cat, selectedId) {
   if (!cat) return `<option value="">Choose a category first</option>`;
   const rank = (c) => (c.f.Season === P().semester ? 0 : !c.f.Season || c.f.Season === "Both" ? 1 : 2);   // this semester's first
   const list = S.catalogue.filter((c) => c.f.Category === cat).sort((a, b) => rank(a) - rank(b) || (a.f.Title || "").localeCompare(b.f.Title || ""));
-  return `<option value="">Choose…</option>` + list.map((c) => `<option value="${esc(c.id)}" ${c.id === selectedId ? "selected" : ""}>${esc(c.f.Title)} · ${seasonLabel(c.f.Season)}</option>`).join("");
+  return `<option value="">Choose…</option>` + list.map((c) => `<option value="${esc(c.id)}" ${c.id === selectedId ? "selected" : ""}>${esc(c.f.Title)} · ${seasonLabel(c.f.Season)}${advisorOnly(c) ? " · advisors only" : ""}</option>`).join("");
 }
 function viewAwards(main) {
   const F = S.awForm;
@@ -669,7 +672,7 @@ function viewAwards(main) {
         </div>
       </div>
       <div class="card award-panel">
-        <h3>Give an award</h3>
+        <h3>Give an award or service points</h3>
         <p class="small muted" id="awSelText"></p>
         <label><span>Category</span><select id="awCat"><option value="">Choose…</option>${cats.map((c) => `<option ${c === F.cat ? "selected" : ""}>${esc(c)}</option>`).join("")}</select></label>
         <label style="margin-top:8px"><span>Award <span class="muted">(labelled Fall, Spring or All year)</span></span><select id="awName" ${F.cat ? "" : "disabled"}>${awardOptions(F.cat, F.id)}</select></label>
@@ -702,8 +705,11 @@ function viewAwards(main) {
     $("#awMonthWrap").hidden = !(c && c.f.AskMonth);
     const isPoints = c && c.f.CertificateType === "Service Points";
     $("#awPointsLabel").textContent = isPoints ? "Service points (required): a number like 16, or Gold / Silver / Bronze." : "Service points (optional). A number like 16, or Gold / Silver / Bronze. Leave blank for a certificate.";
-    $("#awCriteria").innerHTML = c && c.f.Criteria ? notice("", `<b>Criteria:</b> ${esc(c.f.Criteria)}`) : "";
-    const ready = n && c && (!c.f.CustomTitle || $("#awTitle").value.trim()) && (!isPoints || $("#awPoints").value.trim());
+    const blocked = c ? [...new Set([...S.awSel].map((id) => studentById(id)?.f.Grade).filter((g) => !mayGive(c, g)))] : [];
+    $("#awCriteria").innerHTML = (c && c.f.Criteria ? notice("", `<b>Criteria:</b> ${esc(c.f.Criteria)}`) : "")
+      + (blocked.length ? notice("warn", `<b>Advisors only.</b> Only the ${blocked.map(esc).join(" / ")} advisor or co-advisor can give this award. Please pass the name to them.`)
+        : advisorOnly(c) ? `<p class="small muted">Advisors only: you're the advisor for this grade.</p>` : "");
+    const ready = n && c && !blocked.length && (!c.f.CustomTitle || $("#awTitle").value.trim()) && (!isPoints || $("#awPoints").value.trim());
     $("#awSave").disabled = !ready;
   };
   const remember = () => Object.assign(S.awForm, { cat: $("#awCat").value, id: $("#awName").value, type: $("#awType").value, points: $("#awPoints").value,
@@ -729,6 +735,7 @@ function viewAwards(main) {
   };
   $("#awSave").onclick = async () => {
     const c = current(); if (!c) return;
+    if ([...S.awSel].some((id) => !mayGive(c, studentById(id)?.f.Grade))) return flash("warn", "This award can only be given by the bobae's advisor or co-advisor.");
     // What prints on the report card: the teacher's own title, or "Award – Month", or the catalogue name.
     const awardName = c.f.CustomTitle ? $("#awTitle").value.replace(/\s+/g, " ").trim() : c.f.AskMonth ? `${c.f.Title} – ${$("#awMonth").value}` : c.f.Title;
     const ids = [...S.awSel];
@@ -806,6 +813,13 @@ function viewExport(main) {
         <td class="small">${c.dupes.length ? `<span class="badge bad">${c.dupes.length} duplicate subject rows</span> ` : ""}${c.notInRoster.length ? `<span class="badge bad">${c.notInRoster.length} rows not in roster</span>` : ""}</td>
         <td><button class="btn small" data-g="${esc(g)}" ${c.rows || c.comments ? "" : "disabled"}>Marks file</button></td></tr>`; }).join("")}
       </tbody></table></div>
+    ${(() => {
+      // Advisor-only awards that were saved by someone other than that grade's advisors or an admin (e.g. typed straight into SharePoint).
+      const restricted = new Set(teacherCatalogue().filter(advisorOnly).map((c) => lc(c.f.Category + "|" + c.f.Title)));
+      const odd = S.awards.filter((a) => restricted.has(lc(a.f.Category + "|" + a.f.AwardName)) && !advisorEmails(a.f.Grade).includes(a.by) && !P().admins.map(lc).includes(a.by));
+      return odd.length ? notice("warn", `${odd.length} advisor-only award${odd.length > 1 ? "s were" : " was"} saved by someone who isn't that grade's advisor: `
+        + odd.slice(0, 8).map((a) => `${esc(a.f.CalledName || a.f.FullName)} (${esc(a.f.Grade)}): ${esc(a.f.AwardName)}, by ${esc(a.byName || a.f.AwardedBy)}`).join("; ") + (odd.length > 8 ? "…" : "") + ". Check with the advisor before printing.") : "";
+    })()}
     <div class="row">
       <button class="btn primary" id="awardsFile">Awards file (all grades)</button>
       <button class="btn" id="allMarks">All grades in one marks file</button>
@@ -840,7 +854,7 @@ function listSpecs() {
   const specs = [
     { name: L.students, kind: "read", cols: [T("FullName"), T("CalledName"), T("CertificateName"), T("Grade"), T("Email"), T("Department"), T("Joined"), CH("Status", ["Active", "Withdrawn"])] },
     { name: L.subjects, kind: "read", cols: [T("Grade"), CH("SubjectType", ["I", "II"]), T("Teacher"), B("PrintsOnCard"), N("SortOrder")] },
-    { name: L.catalogue, kind: "read", cols: [T("Category"), T("CertificateType"), CH("Season", ["Both", "Fall", "Spring"]), T("Criteria", true), B("AskMonth"), B("CustomTitle"), B("Active"), N("SortOrder")] },
+    { name: L.catalogue, kind: "read", cols: [T("Category"), T("CertificateType"), CH("Season", ["Both", "Fall", "Spring"]), T("Criteria", true), B("AskMonth"), B("CustomTitle"), T("GivenBy"), B("Active"), N("SortOrder")] },
     { name: L.settings, kind: "read", cols: [T("Json", true)] },
     { name: L.awards, kind: "entry", cols: [T("StudentID"), T("FullName"), T("CalledName"), T("Grade"), T("Category"), T("AwardName"), T("CertificateType"), T("Points"), T("Semester"), T("AcademicYear"), D("AwardDate"), T("AwardedBy"), B("Printed")] },
     { name: L.comments, kind: "entry", cols: [T("StudentID"), T("Grade"), T("Semester"), T("AcademicYear"), T("Period"), T("Comment", true)] },
@@ -1031,7 +1045,7 @@ function viewSetup(main) {
       Title: clean(col(r, "Award name", "Award name (cleaned)", "Award_Name")), Category: clean(col(r, "Category")),
       CertificateType: ((t) => P().certificateTypes.find((x) => lc(x) === lc(t)) || t)(clean(col(r, "Certificate type", "Certificate_Type"))),
       Season: ((s) => ["Fall", "Spring"].find((x) => lc(x) === lc(s)) || "Both")(clean(col(r, "Season", "Semester"))),
-      Criteria: clean(col(r, "Criteria")), AskMonth: /^y/i.test(col(r, "Ask for month")), CustomTitle: /^y/i.test(col(r, "Custom title")), Active: true, SortOrder: i + 1 }))
+      Criteria: clean(col(r, "Criteria")), GivenBy: /advisor/i.test(col(r, "Given by")) ? "Advisors" : "", AskMonth: /^y/i.test(col(r, "Ask for month")), CustomTitle: /^y/i.test(col(r, "Custom title")), Active: true, SortOrder: i + 1 }))
       .filter((r) => { if (!r.Title || !r.Category) return false; const k = lc(r.Category + "|" + r.Title); if (seen.has(k)) { dupes.push(r.Title); return false; } seen.add(k); return true; });
     const oddTypes = [...new Set(recs.map((r) => r.CertificateType).filter((t) => !P().certificateTypes.includes(t)))];
     const keyOf = (f) => lc(clean(f.Category) + "|" + clean(f.Title));
@@ -1114,11 +1128,12 @@ function bindYearTools() {
     const q = lc($("#mcFind").value);
     const list = all.filter((c) => (!S.mcCat || c.f.Category === S.mcCat) && (!q || lc(c.f.Title).includes(q)));
     $("#mgAwards").innerHTML = `
-      <div class="table-wrap" style="max-height:420px;overflow:auto"><table><thead><tr><th>Award</th><th>Category</th><th>Certificate type</th><th>Season</th><th class="center">Shown</th></tr></thead><tbody>
+      <div class="table-wrap" style="max-height:420px;overflow:auto"><table><thead><tr><th>Award</th><th>Category</th><th>Certificate type</th><th>Season</th><th class="center">Advisors only</th><th class="center">Shown</th></tr></thead><tbody>
         ${list.map((c) => `<tr><td>${esc(c.f.Title)}</td><td class="small">${esc(c.f.Category)}</td><td class="small">${esc(c.f.CertificateType || "")}</td>
           <td><select data-season="${c.id}" style="width:100px">${["Both", "Fall", "Spring"].map((s) => `<option ${(c.f.Season || "Both") === s ? "selected" : ""}>${s}</option>`).join("")}</select></td>
+          <td class="center"><input type="checkbox" data-advonly="${c.id}" ${advisorOnly(c) ? "checked" : ""}></td>
           <td class="center"><input type="checkbox" data-active="${c.id}" ${c.f.Active !== false ? "checked" : ""}></td></tr>`).join("")
-          || `<tr><td colspan="5" class="muted">Nothing matches.</td></tr>`}
+          || `<tr><td colspan="6" class="muted">Nothing matches.</td></tr>`}
       </tbody></table></div>
       <div class="grid" style="align-items:end">
         <label><span>Category (pick or type a new one)</span><input id="naCat" list="naCats" value="${esc(S.mcCat || "")}"><datalist id="naCats">${cats.map((c) => `<option value="${esc(c)}">`).join("")}</datalist></label>
@@ -1132,6 +1147,7 @@ function bindYearTools() {
       catch (e) { undo(); flash("error", e.message); }
     };
     $$("[data-active]").forEach((c) => (c.onchange = () => patch(c.dataset.active, { Active: c.checked }, () => (c.checked = !c.checked))));
+    $$("[data-advonly]").forEach((c) => (c.onchange = () => patch(c.dataset.advonly, { GivenBy: c.checked ? "Advisors" : "" }, () => (c.checked = !c.checked))));
     $$("[data-season]").forEach((s) => { const was = s.value; s.onchange = () => patch(s.dataset.season, { Season: s.value }, () => (s.value = was)); });
     $("#naAdd").onclick = async () => {
       const cat = $("#naCat").value.replace(/\s+/g, " ").trim(), name = $("#naName").value.replace(/\s+/g, " ").trim();
