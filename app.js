@@ -85,6 +85,7 @@ async function token(scopes = SCOPES) {
   }
 }
 async function graph(method, path, body, scopes) {
+  if (S.viewAs && method !== "GET") throw new Error("Preview only: nothing is saved while you're viewing as someone else. Switch back to yourself to make changes.");
   const r = await fetch(path.startsWith("http") ? path : GRAPH + path, {
     method, headers: { Authorization: "Bearer " + await token(scopes), "Content-Type": "application/json" },
     body: body ? JSON.stringify(body) : undefined });
@@ -172,13 +173,23 @@ const emailsOf = (s) => String(s || "").split(/[\s,;]+/).map(lc).filter((e) => e
 const advisorEmails = (g) => emailsOf(P().advisors[g] && P().advisors[g].email);   // advisor + co-advisor
 const advisorGrades = () => P().grades.filter((g) => advisorEmails(g).includes(S.me));
 const canAdvise = (g) => isAdmin() || advisorGrades().includes(g);
+// Admin team: the only people who generate report cards (Export).
+const isReportTeam = () => isAdmin() || (P().reportTeam || []).map(lc).includes(S.me);
+// Division heads (e.g. Head of Primary) see their own grades read-only.
+const headGrades = () => (P().divisionHeads || {})[S.me] || [];
+const viewGrades = () => isLeader() ? P().grades : P().grades.filter((g) => advisorGrades().includes(g) || headGrades().includes(g));
+// "View as" (admins only): preview the app as someone else. Read-only; graph() refuses writes.
+const realAdmin = () => P().admins.map(lc).includes(S.realMe);
+const nameOf = (e) => (P().names || {})[e] || (Object.values(P().advisors || {}).find((a) => emailsOf(a.email)[0] === e)?.name) || e;
 const advisorName = (g) => (P().advisors[g] && P().advisors[g].name) || "";
 
 // ── Shell ────────────────────────────────────────────────────
 function tabsFor() {
+  if (S.viewAs === "parent") return [["parent", "Parent view"]];
   const t = [["classes", "My classes"], ["awards", "Awards"]];
-  if (advisorGrades().length || isLeader()) t.push(["advisor", "Advisor view"]);
-  if (isAdmin()) t.push(["export", "Export"], ["setup", "Setup"]);
+  if (viewGrades().length) t.push(["advisor", headGrades().length && !advisorGrades().length && !isLeader() ? "Division view" : "Advisor view"]);
+  if (isReportTeam()) t.push(["export", "Report cards"]);
+  if (isAdmin()) t.push(["setup", "Setup"]);
   t.push(["pde", "PDE (in progress)"], ["help", "Help"]);
   return t;
 }
@@ -188,21 +199,46 @@ function renderShell() {
   $("#footer").textContent = `Mr Glen Joshua (${P().semester} ${P().academicYear.slice(0, 4)}) · ${C.version} · Uses Zhongshi Microsoft SharePoint as database`;
   if (!account) { $("#who").textContent = ""; $("#authBtn").innerHTML = ""; $("#tabs").innerHTML = ""; return; }
   $("#who").textContent = account.name || S.me;
-  $("#authBtn").innerHTML = `<button class="btn small" id="signOut">Sign out</button>`;
+  $("#authBtn").innerHTML = `${realAdmin() && !S.loadErr ? viewAsMenu() : ""}<button class="btn small" id="signOut">Sign out</button>`;
   $("#signOut").onclick = () => pca.logoutRedirect({ account });
+  const va = $("#viewAs");
+  if (va) va.onchange = () => {
+    S.viewAs = va.value; S.me = va.value === "parent" ? "parent@preview" : (va.value || S.realMe);
+    S.meName = va.value === "parent" ? "Parent (preview)" : nameOf(S.me);
+    S.tab = tabsFor()[0][0]; S.awSel.clear(); render(); window.scrollTo(0, 0);
+  };
   if (S.loadErr) { $("#tabs").innerHTML = ""; return; }
   const active = { newclass: "classes", entry: S.back, ptc: "advisor" }[S.tab] || S.tab;
   $("#tabs").innerHTML = tabsFor().map(([k, n]) => `<button data-tab="${k}" ${k === active ? 'aria-current="page"' : ""}>${n}</button>`).join("");
   $$("#tabs button").forEach((b) => (b.onclick = () => go(b.dataset.tab)));
 }
 function go(tab) { S.tab = tab; render(); window.scrollTo(0, 0); }
+function viewAsMenu() {
+  const p = P(), opt = (e, label) => `<option value="${esc(e)}" ${S.viewAs === e ? "selected" : ""}>${esc(label || nameOf(e))}</option>`;
+  const advisorOpts = p.grades.flatMap((g) => advisorEmails(g).map((e, i) => opt(e, `${g} ${i ? "co-advisor" : "advisor"}: ${nameOf(e)}`)));
+  const seen = new Set(p.grades.flatMap(advisorEmails));
+  const teachers = (p.staff || []).filter((e) => !seen.has(lc(e))).sort((a, b) => nameOf(a).localeCompare(nameOf(b)));
+  return `<select id="viewAs" class="btn small" style="max-width:230px;margin-right:6px" title="Preview the app as someone else (read-only)">
+    <option value="">View as: myself</option>
+    <optgroup label="Admin team (report cards)">${(p.reportTeam || []).map((e) => opt(e)).join("")}</optgroup>
+    <optgroup label="Division heads">${Object.entries(p.divisionHeads || {}).map(([e, gs]) => opt(e, `${nameOf(e)} (${gs[0]}–${gs[gs.length - 1]})`)).join("")}</optgroup>
+    <optgroup label="Leadership">${p.leadership.map((e) => opt(e)).join("")}</optgroup>
+    <optgroup label="Class advisors">${advisorOpts.join("")}</optgroup>
+    <optgroup label="Subject teachers">${teachers.map((e) => opt(e)).join("")}</optgroup>
+    <optgroup label="Parents">${opt("parent", "A parent (what they receive)")}</optgroup>
+  </select>`;
+}
 function render() {
   renderShell();
   const main = $("#main");
   if (!account) return signInScreen(main);
   if (S.loadErr) return errorScreen(main);
-  const views = { classes: viewClasses, newclass: viewNewClass, entry: viewEntry, advisor: viewAdvisor, ptc: viewPtc, awards: viewAwards, export: viewExport, setup: viewSetup, pde: viewPde, help: viewHelp };
+  const views = { classes: viewClasses, newclass: viewNewClass, entry: viewEntry, advisor: viewAdvisor, ptc: viewPtc, awards: viewAwards, export: viewExport, setup: viewSetup, pde: viewPde, help: viewHelp, parent: viewParent };
+  if (!tabsFor().some(([k]) => k === ({ newclass: "classes", entry: S.back, ptc: "advisor" }[S.tab] || S.tab))) S.tab = tabsFor()[0][0];
   (views[S.tab] || viewClasses)(main);
+  if (S.viewAs) main.insertAdjacentHTML("afterbegin", notice("warn", `<b>Preview:</b> you're seeing the app as <b>${esc(S.meName)}</b>. Read-only: nothing is saved. Their real access is set in SharePoint, so a few things may look slightly different for them. <a href="#" id="endPreview">Back to myself</a>`)
+);
+  const ep = $("#endPreview"); if (ep) ep.onclick = (e) => { e.preventDefault(); const v = $("#viewAs"); v.value = ""; v.onchange(); };
 }
 
 function signInScreen(main) {
@@ -507,7 +543,7 @@ async function setSubmitted(rows, value) {
 
 // ── Advisor view ─────────────────────────────────────────────
 function viewAdvisor(main) {
-  const grades = isLeader() ? P().grades : advisorGrades();
+  const grades = viewGrades();
   if (!S.advGrade || !grades.includes(S.advGrade)) S.advGrade = grades[0] || "";
   const g = S.advGrade;
   const rows = S.marks[g] || [];
@@ -642,7 +678,7 @@ function ptcPage(g, d, i, n) {
   </section>`;
 }
 function viewPtc(main) {
-  const grades = isLeader() ? P().grades : advisorGrades();
+  const grades = viewGrades();
   if (!S.advGrade || !grades.includes(S.advGrade)) S.advGrade = grades[0] || "";
   const g = S.advGrade;
   const all = ptcStudents(g);
@@ -666,6 +702,35 @@ function viewPtc(main) {
   $("#ptcGrade").onchange = (e) => { S.advGrade = e.target.value; S.ptcStudent = ""; render(); };
   $("#ptcStu").onchange = (e) => { S.ptcStudent = e.target.value; render(); };
   $("#ptcPrint").onclick = () => window.print();
+}
+
+// ── Parent view (preview only) ───────────────────────────────
+// Parents don't sign in to this app yet (see PDE question 8). This shows admins what a parent is given.
+function viewParent(main) {
+  const all = P().grades.flatMap((g) => rosterFor(g));
+  if (!S.parentStudent || !studentById(S.parentStudent)) S.parentStudent = all[0]?.f.Title || "";
+  const st = studentById(S.parentStudent), g = st?.f.Grade;
+  const d = st ? ptcStudents(g).find((x) => x.st.Title === st.f.Title) : null;
+  const comment = st ? (S.comments.find((c) => c.f.StudentID === st.f.Title && c.f.Grade === g)?.f.Comment || "") : "";
+  const awards = st ? S.awards.filter((a) => a.f.StudentID === st.f.Title) : [];
+  main.innerHTML = `
+    <div class="no-print">
+      <h1>Parent view</h1>
+      <p class="lede">Parents don't sign in to this app. ${isMidterm()
+        ? "At mid-term they're given their child's <b>PTC sheet</b> at the parent-teacher conference; that's what this shows."
+        : "At the end of the semester they receive the <b>report card</b>, printed by the Admin team. This is a summary of what will be on it."}</p>
+      <label style="max-width:320px;margin-bottom:14px"><span>Bobae</span><select id="pvStu">${P().grades.map((gr) => { const r = rosterFor(gr); return r.length ? `<optgroup label="${esc(gr)}">${r.map((s) => `<option value="${esc(s.f.Title)}" ${s.f.Title === S.parentStudent ? "selected" : ""}>${esc(s.f.CalledName || s.f.FullName)} · ${esc(s.f.FullName)}</option>`).join("")}</optgroup>` : ""; }).join("")}</select></label>
+    </div>
+    ${!st ? `<p class="muted">No bobaes in the roster yet.</p>` : isMidterm() ? `<div class="ptc-wrap">${ptcPage(g, d, 1, 1)}</div>` : `
+      <div class="card">
+        <h2 style="margin-top:0">${esc(st.f.CalledName || st.f.FullName)} <span class="muted small">${esc(st.f.FullName)} · ${esc(g)} · ${esc(P().semester)} ${esc(P().academicYear)}</span></h2>
+        <div class="table-wrap"><table><thead><tr><th>Subject</th><th class="num">Score</th><th>Behaviour</th><th>Teacher's remark</th></tr></thead><tbody>
+          ${d.subj.map((r) => `<tr><td>${esc(subjectDisplay(r.f))}</td><td class="num">${blank(r.f.Score) ? "–" : esc(r.f.Score)}</td><td>${esc(behLabel(r.f.Behaviour))}</td><td class="small">${esc(r.f.Remark || "")}</td></tr>`).join("") || `<tr><td colspan="4" class="muted">No marks yet.</td></tr>`}
+        </tbody></table></div>
+        <h3>Advisor's comment</h3><p class="small">${comment ? esc(comment) : `<span class="muted">Not written yet.</span>`}</p>
+        <h3>Awards and service points</h3><p class="small">${awards.length ? awards.map((a) => esc(a.f.AwardName) + (a.f.Points ? ` (${esc(a.f.Points)})` : "")).join(" · ") : `<span class="muted">None yet.</span>`}</p>
+      </div>`}`;
+  $("#pvStu").onchange = (e) => { S.parentStudent = e.target.value; render(); };
 }
 
 // ── Awards ───────────────────────────────────────────────────
@@ -975,6 +1040,8 @@ function viewSetup(main) {
         <label><span>Reporting period: what teachers are entering now</span><select id="sPeriod">${p.periods.map((s) => `<option ${s === p.period ? "selected" : ""}>${esc(s)}</option>`).join("")}</select></label>
         <label class="wide"><span>Admins (full access in this app), one email per line</span><textarea id="sAdmins" rows="2">${esc(p.admins.join("\n"))}</textarea></label>
         <label class="wide"><span>Leadership (read-only across grades), one email per line. Also add them as Owners of the SharePoint site.</span><textarea id="sLead" rows="3">${esc(p.leadership.join("\n"))}</textarea></label>
+        <label class="wide"><span>Admin team: the only people who can generate report cards (the Report cards tab). One email per line; admins are included automatically.</span><textarea id="sReport" rows="3">${esc((p.reportTeam || []).join("\n"))}</textarea></label>
+        <label class="wide"><span>Division heads: read-only view of their own grades. One per line, as <code>email = G1 G2 G3</code></span><textarea id="sHeads" rows="2">${esc(Object.entries(p.divisionHeads || {}).map(([e, gs]) => `${e} = ${gs.join(" ")}`).join("\n"))}</textarea></label>
       </div>
       <h3 style="margin-top:14px">Class advisors</h3>
       <div class="table-wrap"><table><thead><tr><th>Grade</th><th>Advisor (prints on the card)</th><th>Co-advisor</th><th>School emails of advisor and co-advisor, comma-separated</th></tr></thead><tbody>
@@ -988,7 +1055,8 @@ function viewSetup(main) {
       <ul class="small">
         <li><b>Students, Subjects, Award Catalogue, Settings</b>: staff group can <b>Read</b>.</li>
         <li><b>Awards, Advisor Comments, Marks G…</b>: staff group can <b>Contribute</b>, with <b>item-level privacy</b> (each person reads and edits only what they created).</li>
-        <li><b>Marks G…</b>: that grade's advisor also gets <b>Design</b>, so they can see and correct the whole grade.</li>
+        <li><b>Marks G…</b>: that grade's advisor also gets <b>Design</b>, so they can see and correct the whole grade. Division heads get the same on their grades.</li>
+        <li><b>Admin team</b> (step 3) gets <b>Design</b> on Marks, Advisor Comments and Awards, so they can read every grade to generate report cards.</li>
       </ul>
       <label><span>Staff who enter marks or awards, one school email per line (advisors are added automatically)</span><textarea id="staffEmails" rows="6" placeholder="name@zhongshischool.org">${esc((p.staff || []).join("\n"))}</textarea></label>
       <p><button class="btn primary" id="applyPerms">Apply permissions</button></p>
@@ -1116,7 +1184,13 @@ function viewSetup(main) {
     const lines = (id) => $(id).value.split(/[\s,;]+/).map(lc).filter(Boolean);
     const advisors = {};
     for (const g of P().grades) advisors[g] = { name: $(`.advName[data-g="${g}"]`).value.trim(), co: $(`.advCo[data-g="${g}"]`).value.trim(), email: emailsOf($(`.advEmail[data-g="${g}"]`).value).join(", ") };
-    const json = { academicYear: $("#sYear").value.trim(), semester: $("#sSem").value, period: $("#sPeriod").value, admins: lines("#sAdmins"), leadership: lines("#sLead"), advisors };
+    const divisionHeads = {};
+    for (const line of $("#sHeads").value.split("\n")) {
+      const [e, gs] = line.split("="); const email = lc(e); if (!email.includes("@")) continue;
+      divisionHeads[email] = String(gs || "").split(/[\s,;]+/).map((x) => x.trim().toUpperCase()).filter((x) => P().grades.includes(x));
+    }
+    const json = { academicYear: $("#sYear").value.trim(), semester: $("#sSem").value, period: $("#sPeriod").value, admins: lines("#sAdmins"), leadership: lines("#sLead"),
+      reportTeam: lines("#sReport"), divisionHeads, advisors };
     if (!json.admins.includes(S.me) && !confirm("You are removing yourself from the admins. Continue?")) return;
     try {
       if (S.settingsItem) await graph("PATCH", `${itemsUrl(L.settings)}/${S.settingsItem.id}/fields`, { Json: JSON.stringify(json, null, 1) });
@@ -1227,7 +1301,11 @@ async function applyPermissions(specs, staffEmails, out) {
   const visitors = await sp("GET", "web/associatedvisitorgroup?$select=Id").catch(() => null);
   let group = await sp("GET", `web/sitegroups/getbyname('${encodeURIComponent(C.staffGroup)}')?$select=Id`).catch(() => null);
   if (!group) { group = await sp("POST", "web/sitegroups", { __metadata: { type: "SP.Group" }, Title: C.staffGroup, Description: "Teachers who enter marks and awards in WZFS Reporting" }); out(`Created group ${C.staffGroup}.`); }
-  const everyone = [...new Set([...staffEmails, ...P().grades.flatMap(advisorEmails)])];
+  const reportTeam = [...new Set([...(P().reportTeam || []), ...P().admins].map(lc))];
+  const heads = Object.entries(P().divisionHeads || {}).map(([e, gs]) => [lc(e), gs]);
+  const everyone = [...new Set([...staffEmails, ...P().grades.flatMap(advisorEmails), ...reportTeam, ...heads.map(([e]) => e)])];
+  const userIds = {};
+  const userId = async (e) => (userIds[e] = userIds[e] || (await sp("POST", "web/ensureuser", { logonName: claims(e) })).Id);
   for (const e of everyone) {
     try { await sp("POST", `web/sitegroups(${group.Id})/users`, { __metadata: { type: "SP.User" }, LoginName: claims(e) }); }
     catch (err) { out(`  ! Could not add ${e}: ${err.message}`); }
@@ -1243,13 +1321,17 @@ async function applyPermissions(specs, staffEmails, out) {
     if (s.kind !== "read") Object.assign(props, { ReadSecurity: 2, WriteSecurity: 2 });
     await sp("POST", base, props, { "X-HTTP-Method": "MERGE", "IF-MATCH": "*" });
     let extra = "";
+    const design = async (emails) => { for (const e of emails) await sp("POST", `${base}/roleassignments/addroleassignment(principalid=${await userId(e)},roledefid=${role(4)})`); };
     if (s.kind === "marks") {
       const advs = advisorEmails(s.grade);
-      for (const adv of advs) {
-        const u = await sp("POST", "web/ensureuser", { logonName: claims(adv) });
-        await sp("POST", `${base}/roleassignments/addroleassignment(principalid=${u.Id},roledefid=${role(4)})`);
-      }
+      await design(advs);
       extra = advs.length ? ` · advisors ${advs.join(", ")}: Design` : " · no advisor email set";
+      const hs = heads.filter(([, gs]) => gs.includes(s.grade)).map(([e]) => e);
+      if (hs.length) { await design(hs); extra += ` · division head ${hs.join(", ")}: Design`; }
+    }
+    if (s.kind !== "read") {   // Admin team reads every grade's marks, comments and awards to make report cards
+      await design(reportTeam); extra += ` · Admin team (${reportTeam.length}): Design`;
+      if (s.name === L.comments && heads.length) { await design(heads.map(([e]) => e)); extra += " · division heads: Design"; }
     }
     out(`✓ ${s.name}: Owners Full Control · ${C.staffGroup} ${s.kind === "read" ? "Read" : "Contribute, item-level"}${extra}`);
   }
@@ -1486,7 +1568,7 @@ async function start() {
   try {
     if (!pca) await initAuth();
     if (!account) return render();
-    S.me = lc(account.username); S.meName = account.name || S.me;
+    S.me = S.realMe = lc(account.username); S.meName = account.name || S.me; S.viewAs = "";
     S.loadErr = null;
     await loadAll();
     const resume = sessionStorage.getItem("rp_tab"); sessionStorage.removeItem("rp_tab");

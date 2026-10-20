@@ -53,8 +53,29 @@ window.APP_CONFIG = {
     "dlee@zhongshischool.org",         // Daniel Lee, Vice President
     "mkkim@zhongshischool.org",        // Andy Kim, VP Communications
     "rrussell@zhongshischool.org",     // Roger Russell
-    "xtobias@zhongshischool.org",      // Xochitl Tobias, VP Primary
   ],
+  // Division heads: read-only Advisor view and PTC sheets for their own grades only.
+  divisionHeads: {
+    "xtobias@zhongshischool.org": ["G1", "G2", "G3", "G4", "G5"],   // Xochitl Tobias, Head of Primary
+  },
+  // Admin team: the only people who can generate report cards (Export tab). Admins are included automatically.
+  reportTeam: [
+    "rpark@zhongshischool.org",        // Ryan Park, Registrar
+    "pgao@zhongshischool.org",         // Peter Gao, Administration
+    "jbkim@zhongshischool.org",        // Keating Kim, Administrator
+    "mkkim@zhongshischool.org",        // Andy Kim, VP Communications
+  ],
+  // Display names for the admin "View as" menu (advisors' names come from `advisors` below).
+  names: {
+    "glenj@zhongshischool.org": "Glen Joshua", "gjoshua@zhongshischool.org": "Glen Joshua (2nd account)",
+    "rpark@zhongshischool.org": "Ryan Park", "pgao@zhongshischool.org": "Peter Gao", "jbkim@zhongshischool.org": "Keating Kim",
+    "mkkim@zhongshischool.org": "Andy Kim", "xtobias@zhongshischool.org": "Xochitl Tobias", "asumeg-ang@zhongshischool.org": "Arsenio Sumeg-ang",
+    "dlee@zhongshischool.org": "Daniel Lee", "mlee@zhongshischool.org": "Moody Lee", "rrussell@zhongshischool.org": "Roger Russell",
+    "jpaa@zhongshischool.org": "Jonathan Pa-a", "agong@zhongshischool.org": "Alan Gong", "mparker@zhongshischool.org": "Mae Parker",
+    "gparker@zhongshischool.org": "Gregg Parker", "randy@zhongshischool.org": "Randy Wang", "gliu@zhongshischool.org": "Grace Liu",
+    "w_reacher@zhongshischool.org": "Reacher Williams", "mgangaramani@zhongshischool.org": "Meera Gangaramani",
+    "bbirkenstock@zhongshischool.org": "Brendon Birkenstock", "eduarte@zhongshischool.org": "Eri Duarte", "kyang@zhongshischool.org": "Kimberly Yang",
+  },
   // Teaching staff — pre-fills Setup → Permissions (the "Reporting Staff" group).
   staff: [
     // Primary School
