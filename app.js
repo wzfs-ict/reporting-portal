@@ -154,8 +154,12 @@ async function loadAll() {
 }
 async function loadMarks(grade) {
   const grades = grade ? [grade] : P().grades;
-  await Promise.all(grades.map(async (g) => { S.marks[g] = (await readList(marksListName(g))).filter((x) => inPeriod(x.f)); }));
+  await Promise.all(grades.map(async (g) => { S.marks[g] = (await readList(marksListName(g))).filter((x) => inPeriod(x.f)).map((x) => ({ ...x, list: g })); }));
 }
+// A mark row lives in the bobae's own grade list (r.list), so it reaches their report card and advisor.
+// ClassGrade is the grade of the class they sit in, e.g. a G11 bobae in a G10 class. Blank = same as the list.
+const allMarks = () => Object.values(S.marks).flat();
+const classGradeOf = (r) => r.f.ClassGrade || r.list;
 async function loadComments() { S.comments = (await readList(L.comments)).filter((x) => inPeriod(x.f)); }
 async function loadAwards() { S.awards = (await readList(L.awards)).filter((x) => inTerm(x.f)); }
 const rosterFor = (g) => S.students.filter((s) => s.f.Grade === g && s.f.Status !== "Withdrawn");
@@ -235,16 +239,16 @@ function errorScreen(main) {
 }
 
 // ── My classes ───────────────────────────────────────────────
-function classKey(f) { return `${f.Subject}|${f.ClassLevel || ""}`; }
 function groupClasses(rows) {
   const m = new Map();
   for (const r of rows) {
-    const k = classKey(r.f) + "|" + r.by;
-    if (!m.has(k)) m.set(k, { subject: r.f.Subject, level: r.f.ClassLevel || "", by: r.by, byName: r.byName || r.f.TeacherName, rows: [] });
+    const k = `${classGradeOf(r)}|${r.f.Subject}|${r.f.ClassLevel || ""}|${r.by}`;
+    if (!m.has(k)) m.set(k, { grade: classGradeOf(r), subject: r.f.Subject, level: r.f.ClassLevel || "", by: r.by, byName: r.byName || r.f.TeacherName, rows: [] });
     m.get(k).rows.push(r);
   }
   return [...m.values()].map((c) => ({ ...c,
     total: c.rows.length,
+    guests: c.rows.filter((r) => r.list !== c.grade).length,
     done: c.rows.filter((r) => !blank(r.f.Score) && !blank(r.f.Behaviour)).length,
     submitted: c.rows.length > 0 && c.rows.every((r) => r.f.Submitted === true),
   }));
@@ -255,8 +259,8 @@ function statusBadge(c) {
   return `<span class="badge warn">In progress · ${c.done} of ${c.total}</span>`;
 }
 function viewClasses(main) {
-  const mine = [];
-  for (const g of P().grades) for (const c of groupClasses((S.marks[g] || []).filter((r) => r.by === S.me))) mine.push({ grade: g, ...c });
+  const order = (g) => P().grades.indexOf(g);
+  const mine = groupClasses(allMarks().filter((r) => r.by === S.me)).sort((a, b) => order(a.grade) - order(b.grade) || a.subject.localeCompare(b.subject));
   const hasLists = P().grades.some((g) => S.lists[marksListName(g)]);
   main.innerHTML = `
     <h1>My classes</h1>
@@ -268,7 +272,7 @@ function viewClasses(main) {
         <button class="class-card" data-i="${i}">
           <div class="t">${esc(c.grade)} · ${esc(subjectDisplay({ Subject: c.subject, ClassLevel: c.level }))}</div>
           <div class="bar"><i style="width:${c.total ? Math.round((100 * c.done) / c.total) : 0}%"></i></div>
-          <div class="small muted">${c.total} students &nbsp; ${statusBadge(c)}</div>
+          <div class="small muted">${c.total} students${c.guests ? ` (${c.guests} from other grades)` : ""} &nbsp; ${statusBadge(c)}</div>
         </button>`).join("")}
       ${hasLists ? `<button class="class-card" id="addClass" style="border-style:dashed;text-align:center"><div class="t">+ Add a class</div><div class="small muted">Pick a grade and subject</div></button>` : ""}
     </div>
@@ -279,6 +283,27 @@ function viewClasses(main) {
 }
 function openClass(grade, subject, level, by, back) { S.cls = { grade, subject, level, by }; S.back = back; go("entry"); }
 
+// Pick bobaes from other grades into a class (e.g. Ryan and Blair, G11, sitting in a G10 class).
+// `chosen` is a Set of Student IDs kept across grade switches; `exclude` are IDs already in the class.
+function otherGradePicker(box, classGrade, exclude, chosen, onChange) {
+  const others = P().grades.filter((g) => g !== classGrade && S.lists[marksListName(g)]);
+  const near = others.filter((g) => Math.abs(P().grades.indexOf(g) - P().grades.indexOf(classGrade)) <= 2);
+  let pick = box.dataset.pick && others.includes(box.dataset.pick) ? box.dataset.pick : (near[0] || others[0] || "");
+  const draw = () => {
+    box.dataset.pick = pick;
+    const list = pick ? rosterFor(pick).filter((s) => !exclude.has(s.f.Title)) : [];
+    const picked = [...chosen].map(studentById).filter(Boolean);
+    box.innerHTML = `
+      <p class="small muted" style="margin:0 0 8px">For bobaes who belong to another grade but sit in this ${esc(classGrade)} class. Their marks go on <b>their own</b> grade's report card and to their own advisor.</p>
+      <div class="row" style="margin-bottom:8px"><label style="max-width:160px"><span>From grade</span><select class="ogGrade">${others.map((g) => `<option ${g === pick ? "selected" : ""}>${esc(g)}</option>`).join("")}</select></label></div>
+      ${list.length ? `<div class="grid">${list.map((s) => `<label style="color:var(--text)"><input type="checkbox" class="ogStu" value="${esc(s.f.Title)}" ${chosen.has(s.f.Title) ? "checked" : ""}> ${esc(s.f.CalledName || s.f.FullName)} <span class="muted small">${esc(s.f.FullName)}</span></label>`).join("")}</div>`
+        : `<p class="small muted">Nobody to add from ${esc(pick || "other grades")}.</p>`}
+      ${picked.length ? `<p class="small" style="margin-top:8px"><b>Added from other grades:</b> ${picked.map((s) => `${esc(s.f.CalledName || s.f.FullName)} <span class="badge">${esc(s.f.Grade)}</span>`).join(" ")}</p>` : ""}`;
+    $(".ogGrade", box).onchange = (e) => { pick = e.target.value; draw(); };
+    $$(".ogStu", box).forEach((c) => (c.onchange = () => { c.checked ? chosen.add(c.value) : chosen.delete(c.value); draw(); onChange(); }));
+  };
+  draw();
+}
 function viewNewClass(main) {
   const grades = P().grades.filter((g) => S.lists[marksListName(g)]);
   main.innerHTML = `
@@ -297,9 +322,11 @@ function viewNewClass(main) {
       <span class="small muted" id="ncCount"></span>
     </div>`;
   const gSel = $("#ncGrade"), sSel = $("#ncSubject");
+  const guests = new Set();
   const refresh = () => {
     const g = gSel.value;
     const roster = g ? rosterFor(g) : [];
+    for (const id of [...guests]) if (studentById(id)?.f.Grade === g) guests.delete(id);   // now part of the class grade itself
     $("#ncRoster").innerHTML = g ? `
       <div class="card">
         <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px">
@@ -309,8 +336,10 @@ function viewNewClass(main) {
         ${roster.length ? `<div class="grid">${roster.map((s) => `
           <label style="color:var(--text)"><input type="checkbox" class="ncStu" value="${esc(s.f.Title)}" checked> ${esc(s.f.CalledName || s.f.FullName)} <span class="muted small">${esc(s.f.FullName)}</span></label>`).join("")}</div>`
           : notice("warn", "No students found for this grade in the roster.")}
-      </div>` : "";
-    const upd = () => { const n = $$(".ncStu:checked").length; $("#ncCount").textContent = g ? `${n} students selected` : ""; $("#ncCreate").disabled = !(g && sSel.value && n); };
+      </div>
+      <details class="card" ${guests.size ? "open" : ""}><summary>Add bobaes from other grades${guests.size ? ` (${guests.size} added)` : ""}</summary><div id="ncOther" style="margin-top:10px"></div></details>` : "";
+    const upd = () => { const n = $$(".ncStu:checked").length + guests.size; $("#ncCount").textContent = g ? `${n} students selected${guests.size ? `, ${guests.size} from other grades` : ""}` : ""; $("#ncCreate").disabled = !(g && sSel.value && n); };
+    if (g) otherGradePicker($("#ncOther"), g, new Set(roster.map((s) => s.f.Title)), guests, upd);
     $$(".ncStu").forEach((c) => (c.onchange = upd));
     const a = $("#ncAll"), z = $("#ncNone");
     if (a) a.onclick = () => { $$(".ncStu").forEach((c) => (c.checked = true)); upd(); };
@@ -327,8 +356,8 @@ function viewNewClass(main) {
   $("#ncCancel").onclick = () => go("classes");
   $("#ncCreate").onclick = async () => {
     const g = gSel.value, subject = sSel.value, level = $("#ncLevel").value.trim();
-    const ids = $$(".ncStu:checked").map((c) => c.value);
-    const existing = (S.marks[g] || []).filter((r) => r.by === S.me && r.f.Subject === subject && (r.f.ClassLevel || "") === level);
+    const ids = [...$$(".ncStu:checked").map((c) => c.value), ...guests];
+    const existing = allMarks().filter((r) => r.by === S.me && classGradeOf(r) === g && r.f.Subject === subject && (r.f.ClassLevel || "") === level);
     if (existing.length) { flash("warn", "You already have this class. Opening it."); return openClass(g, subject, level, S.me, "classes"); }
     const subj = S.subjects.find((s) => s.f.Grade === g && s.f.Title === subject);
     $("#ncCreate").disabled = true; $("#ncCreate").textContent = "Creating…";
@@ -338,32 +367,40 @@ function viewNewClass(main) {
     } catch (e) { flash("error", e.message); $("#ncCreate").disabled = false; $("#ncCreate").textContent = "Create class"; }
   };
 }
+// g = the class grade. Each bobae's row is written to their OWN grade's list, tagged with ClassGrade = g.
 async function createRows(g, subject, type, level, ids) {
-  const url = itemsUrl(marksListName(g));
+  const lists = new Set();
   const reqs = ids.map((id) => {
     const s = studentById(id).f;
-    return { method: "POST", url, body: { fields: {
+    if (!S.lists[marksListName(s.Grade)]) throw new Error(`There is no "${marksListName(s.Grade)}" list for ${s.FullName}. Ask ICT to create it on the Setup tab.`);
+    lists.add(s.Grade);
+    return { method: "POST", url: itemsUrl(marksListName(s.Grade)), body: { fields: {
       Title: `${s.CalledName || s.FullName} – ${subject}`, StudentID: id, FullName: s.FullName, CalledName: s.CalledName || "",
-      Subject: subject, SubjectType: type || "I", ClassLevel: level, ...termP(), Submitted: false, Concern: false, TeacherName: S.meName } } };
+      Subject: subject, SubjectType: type || "I", ClassLevel: level, ClassGrade: g, ...termP(), Submitted: false, Concern: false, TeacherName: S.meName } } };
   });
   const res = await batch(reqs);
   const bad = batchFailures(res);
-  await loadMarks(g);
+  await Promise.all([...lists].map((x) => loadMarks(x)));
   if (bad.length) throw new Error(`${bad.length} of ${reqs.length} students could not be added (${bad[0]?.body?.error?.message || "unknown error"}). Open the class and use "Add students" to retry.`);
 }
 
 // ── Marks entry ──────────────────────────────────────────────
 function viewEntry(main) {
-  const { grade, subject, level, by } = S.cls;
-  const rows = (S.marks[grade] || []).filter((r) => r.by === by && r.f.Subject === subject && (r.f.ClassLevel || "") === level)
-    .sort((a, b) => (a.f.FullName || "").localeCompare(b.f.FullName || ""));
+  const { grade, subject, level, by } = S.cls;   // grade = the class grade
+  const rows = allMarks().filter((r) => r.by === by && classGradeOf(r) === grade && r.f.Subject === subject && (r.f.ClassLevel || "") === level)
+    .sort((a, b) => (a.list !== grade) - (b.list !== grade) || (a.f.FullName || "").localeCompare(b.f.FullName || ""));
   const mine = by === S.me;
   const submitted = rows.length > 0 && rows.every((r) => r.f.Submitted === true);
-  const supervisor = canAdvise(grade) && !mine;
-  const editable = (mine && !submitted) || (supervisor && canAdvise(grade)) || (isAdmin());
+  const advisesSome = rows.some((r) => canAdvise(r.list)) || canAdvise(grade);
+  const supervisor = advisesSome && !mine;
+  // Per row: the teacher (until submitted), an admin, or the advisor of that bobae's own grade can edit.
+  const rowEditable = (r) => (mine && !submitted) || isAdmin() || (!mine && canAdvise(r.list));
+  const editable = rows.some(rowEditable) || (mine && !submitted);
   const teacher = rows[0] ? (rows[0].byName || rows[0].f.TeacherName) : "";
   const scale = P().behaviourScale;
-  const missingIds = rosterFor(grade).filter((s) => !rows.some((r) => r.f.StudentID === s.f.Title));
+  const inClass = new Set(rows.map((r) => r.f.StudentID));
+  const missingIds = rosterFor(grade).filter((s) => !inClass.has(s.f.Title));
+  const listUrl = (r) => itemsUrl(marksListName(r.list));
   main.innerHTML = `
     <p><a href="#" id="back">← Back</a></p>
     <h1>${esc(grade)} · ${esc(subjectDisplay({ Subject: subject, ClassLevel: level }))}</h1>
@@ -378,23 +415,24 @@ function viewEntry(main) {
       ${rows.map((r, i) => `
         <tr data-id="${r.id}">
           <td class="muted">${i + 1}</td>
-          <td><b>${esc(r.f.CalledName || r.f.FullName)}</b><div class="small muted">${esc(r.f.FullName)} · ${esc(r.f.StudentID)}</div></td>
-          <td class="num"><input class="score" inputmode="decimal" autocomplete="off" value="${blank(r.f.Score) ? "" : esc(r.f.Score)}" ${editable ? "" : "disabled"} aria-label="Score for ${esc(r.f.FullName)}"></td>
-          <td><select class="beh" ${editable ? "" : "disabled"} aria-label="Behaviour for ${esc(r.f.FullName)}"><option value=""></option>${scale.map((b) => `<option value="${b.value}" ${Number(r.f.Behaviour) === b.value ? "selected" : ""}>${b.value} – ${esc(b.label)}</option>`).join("")}</select></td>
-          <td><textarea class="remark" maxlength="${P().remarkMaxLength}" ${editable ? "" : "disabled"} aria-label="Remark for ${esc(r.f.FullName)}">${esc(r.f.Remark || "")}</textarea></td>
-          <td class="center"><input type="checkbox" class="concern" ${r.f.Concern ? "checked" : ""} ${editable ? "" : "disabled"} aria-label="Flag a concern about ${esc(r.f.FullName)} for the advisor"></td>
+          <td><b>${esc(r.f.CalledName || r.f.FullName)}</b>${r.list !== grade ? ` <span class="badge info" title="Belongs to ${esc(r.list)}; this mark goes on their ${esc(r.list)} report card">${esc(r.list)}</span>` : ""}<div class="small muted">${esc(r.f.FullName)} · ${esc(r.f.StudentID)}</div></td>
+          <td class="num"><input class="score" inputmode="decimal" autocomplete="off" value="${blank(r.f.Score) ? "" : esc(r.f.Score)}" ${rowEditable(r) ? "" : "disabled"} aria-label="Score for ${esc(r.f.FullName)}"></td>
+          <td><select class="beh" ${rowEditable(r) ? "" : "disabled"} aria-label="Behaviour for ${esc(r.f.FullName)}"><option value=""></option>${scale.map((b) => `<option value="${b.value}" ${Number(r.f.Behaviour) === b.value ? "selected" : ""}>${b.value} – ${esc(b.label)}</option>`).join("")}</select></td>
+          <td><textarea class="remark" maxlength="${P().remarkMaxLength}" ${rowEditable(r) ? "" : "disabled"} aria-label="Remark for ${esc(r.f.FullName)}">${esc(r.f.Remark || "")}</textarea></td>
+          <td class="center"><input type="checkbox" class="concern" ${r.f.Concern ? "checked" : ""} ${rowEditable(r) ? "" : "disabled"} aria-label="Flag a concern about ${esc(r.f.FullName)} for the advisor"></td>
           <td class="rowstate"></td>
-          ${editable && (mine || isAdmin()) ? `<td><button class="btn small danger rm" title="Remove this student from the class">✕</button></td>` : ""}
+          ${editable && (mine || isAdmin()) ? `<td>${rowEditable(r) ? `<button class="btn small danger rm" title="Remove this student from the class">✕</button>` : ""}</td>` : ""}
         </tr>`).join("")}
       </tbody></table></div>
-    ${editable && missingIds.length && (mine || isAdmin()) ? `
-      <details class="card"><summary>Add students (${missingIds.length} in ${esc(grade)} not in this class)</summary>
-        <div class="grid" style="margin-top:10px">${missingIds.map((s) => `<label style="color:var(--text)"><input type="checkbox" class="addStu" value="${esc(s.f.Title)}"> ${esc(s.f.CalledName || s.f.FullName)} <span class="muted small">${esc(s.f.FullName)}</span></label>`).join("")}</div>
+    ${editable && (mine || isAdmin()) ? `
+      <details class="card"><summary>Add students${missingIds.length ? ` (${missingIds.length} in ${esc(grade)} not in this class)` : ""}, or bobaes from other grades</summary>
+        ${missingIds.length ? `<div class="grid" style="margin-top:10px">${missingIds.map((s) => `<label style="color:var(--text)"><input type="checkbox" class="addStu" value="${esc(s.f.Title)}"> ${esc(s.f.CalledName || s.f.FullName)} <span class="muted small">${esc(s.f.FullName)}</span></label>`).join("")}</div>` : ""}
+        <h3 style="margin-top:14px">From other grades</h3><div id="addOther"></div>
         <p><button class="btn" id="addStudents">Add selected</button></p>
       </details>` : ""}
     <div class="sticky-actions">
       ${mine && !submitted ? `<button class="btn primary" id="submit">Submit to advisor</button>` : ""}
-      ${submitted && (canAdvise(grade)) ? `<button class="btn" id="reopen">Reopen for the teacher</button>` : ""}
+      ${submitted && advisesSome ? `<button class="btn" id="reopen">Reopen for the teacher</button>` : ""}
       <span class="small muted" id="progress"></span>
     </div>`;
   $("#back").onclick = (e) => { e.preventDefault(); go(S.back); };
@@ -409,7 +447,7 @@ function viewEntry(main) {
     const save = async (fields) => {
       state.className = "rowstate"; state.textContent = "Saving…";
       try {
-        await graph("PATCH", `${itemsUrl(marksListName(grade))}/${r.id}/fields`, fields);
+        await graph("PATCH", `${listUrl(r)}/${r.id}/fields`, fields);
         Object.assign(r.f, fields); state.textContent = "Saved ✓"; progress();
       } catch (e) { state.className = "rowstate err"; state.textContent = "Not saved"; state.title = e.message; flash("error", `Couldn't save ${r.f.FullName}: ${e.message}`); }
     };
@@ -435,7 +473,7 @@ function viewEntry(main) {
     const rm = $(".rm", tr);
     if (rm) rm.onclick = async () => {
       if (!confirm(`Remove ${r.f.FullName} from this class? Their score and remark for this subject will be deleted.`)) return;
-      try { await graph("DELETE", `${itemsUrl(marksListName(grade))}/${r.id}`); await loadMarks(grade); render(); }
+      try { await graph("DELETE", `${listUrl(r)}/${r.id}`); await loadMarks(r.list); render(); }
       catch (e) { flash("error", e.message); }
     };
   }
@@ -444,23 +482,24 @@ function viewEntry(main) {
     const missing = rows.filter((r) => blank(r.f.Score) || blank(r.f.Behaviour));
     if (missing.length && !confirm(`${missing.length} student(s) still have no score or behaviour:\n${missing.slice(0, 8).map((r) => "• " + r.f.FullName).join("\n")}${missing.length > 8 ? "\n…" : ""}\n\nSubmit anyway?`)) return;
     if (!missing.length && !confirm("Submit this class to the advisor? You won't be able to edit it afterwards unless the advisor reopens it.")) return;
-    await setSubmitted(grade, rows, true);
+    await setSubmitted(rows, true);
   };
   const ro = $("#reopen");
-  if (ro) ro.onclick = () => setSubmitted(grade, rows, false);
+  if (ro) ro.onclick = () => setSubmitted(rows.filter((r) => isAdmin() || canAdvise(r.list)), false);
+  const guests = new Set();
+  const ao = $("#addOther"); if (ao) otherGradePicker(ao, grade, inClass, guests, () => {});
   const add = $("#addStudents");
   if (add) add.onclick = async () => {
-    const ids = $$(".addStu:checked").map((c) => c.value);
+    const ids = [...$$(".addStu:checked").map((c) => c.value), ...guests];
     if (!ids.length) return;
     const t = rows[0] ? rows[0].f.SubjectType : (S.subjects.find((s) => s.f.Grade === grade && s.f.Title === subject)?.f.SubjectType || "I");
     try { await createRows(grade, subject, t, level, ids); render(); } catch (e) { flash("error", e.message); }
   };
 }
-async function setSubmitted(grade, rows, value) {
-  const url = itemsUrl(marksListName(grade));
-  const res = await batch(rows.map((r) => ({ method: "PATCH", url: `${url}/${r.id}/fields`, body: { Submitted: value } })));
+async function setSubmitted(rows, value) {
+  const res = await batch(rows.map((r) => ({ method: "PATCH", url: `${itemsUrl(marksListName(r.list))}/${r.id}/fields`, body: { Submitted: value } })));
   const bad = batchFailures(res);
-  await loadMarks(grade);
+  await Promise.all([...new Set(rows.map((r) => r.list))].map((g) => loadMarks(g)));
   render();
   if (bad.length) flash("error", `${bad.length} rows could not be updated: ${bad[0]?.body?.error?.message || ""}`);
   else flash("ok", value ? "Submitted to the advisor." : "Reopened. The teacher can edit again.");
@@ -500,7 +539,7 @@ function viewAdvisor(main) {
     <div class="table-wrap"><table>
       <thead><tr><th>Subject</th><th>Teacher</th><th>Progress</th><th></th></tr></thead>
       <tbody>
-        ${classes.map((c, i) => `<tr><td>${esc(subjectDisplay({ Subject: c.subject, ClassLevel: c.level }))}</td><td>${esc(c.byName)}</td><td>${statusBadge(c)}</td><td><button class="btn small" data-open="${i}">Open</button></td></tr>`).join("")}
+        ${classes.map((c, i) => `<tr><td>${esc(subjectDisplay({ Subject: c.subject, ClassLevel: c.level }))}${c.grade !== g ? ` <span class="badge info" title="These ${esc(g)} bobaes sit in a ${esc(c.grade)} class">in ${esc(c.grade)} class</span>` : ""}</td><td>${esc(c.byName)}</td><td>${statusBadge(c)}</td><td><button class="btn small" data-open="${i}">Open</button></td></tr>`).join("")}
         ${notStarted.map((s) => `<tr><td>${esc(s.f.Title)}</td><td class="muted">${esc(s.f.Teacher || "—")}</td><td><span class="badge bad">No class created</span></td><td></td></tr>`).join("")}
         ${!classes.length && !notStarted.length ? `<tr><td colspan="4" class="muted">No subjects yet.</td></tr>` : ""}
       </tbody></table></div>
@@ -526,7 +565,7 @@ function viewAdvisor(main) {
         <td class="rowstate"></td></tr>`; }).join("")}</tbody></table></div>`;
   $("#advGrade").onchange = (e) => { S.advGrade = e.target.value; render(); };
   $("#toPtc").onclick = () => go("ptc");
-  $$("[data-open]").forEach((b) => (b.onclick = () => { const c = classes[+b.dataset.open]; openClass(g, c.subject, c.level, c.by, "advisor"); }));
+  $$("[data-open]").forEach((b) => (b.onclick = () => { const c = classes[+b.dataset.open]; openClass(c.grade, c.subject, c.level, c.by, "advisor"); }));
   for (const tr of $$("tr[data-sid]", main)) {
     const ta = $(".cmt", tr), state = $(".rowstate", tr), sid = tr.dataset.sid;
     ta.onchange = async () => {
@@ -873,7 +912,7 @@ function listSpecs() {
     { name: L.comments, kind: "entry", cols: [T("StudentID"), T("Grade"), T("Semester"), T("AcademicYear"), T("Period"), T("Comment", true)] },
   ];
   for (const g of P().grades) specs.push({ name: marksListName(g), grade: g, kind: "marks", cols: [
-    T("StudentID"), T("FullName"), T("CalledName"), T("Subject"), CH("SubjectType", ["I", "II"]), T("ClassLevel"), T("Semester"), T("AcademicYear"), T("Period"),
+    T("StudentID"), T("FullName"), T("CalledName"), T("Subject"), CH("SubjectType", ["I", "II"]), T("ClassLevel"), T("ClassGrade"), T("Semester"), T("AcademicYear"), T("Period"),
     N("Score", 0, 100, "one"), N("Behaviour", 1, 4, "none"), T("Remark", true), B("Concern"), B("Submitted"), T("TeacherName")] });
   return specs;
 }
