@@ -164,7 +164,7 @@ function tabsFor() {
   const t = [["classes", "My classes"], ["awards", "Awards"]];
   if (advisorGrades().length || isLeader()) t.push(["advisor", "Advisor view"]);
   if (isAdmin()) t.push(["export", "Export"], ["setup", "Setup"]);
-  t.push(["pde", "PDE"], ["help", "Help"]);
+  t.push(["pde", "PDE (in progress)"], ["help", "Help"]);
   return t;
 }
 function renderShell() {
@@ -1202,24 +1202,160 @@ async function applyPermissions(specs, staffEmails, out) {
   }
 }
 
-// ── PDE (placeholder) ────────────────────────────────────────
-function viewPde(main) {
-  main.innerHTML = `
-    <div class="card pde-hero">
-      <div class="big">🌱</div>
-      <h1>Purpose Driven Education</h1>
-      <p><span class="badge warn">In development</span></p>
-      <p class="lede" style="max-width:620px;margin:10px auto">PDE is being designed with our teachers. When it opens here, each bobae's goals, core-value ratings and reflections will sit alongside the marks you already enter, so no score is ever typed twice.</p>
+// ── PDE: Academic Purpose-Driven Education (work in progress) ─
+// A design preview for the teacher committee. Nothing here reads or writes SharePoint;
+// every number on these pages is an invented example. Build the real lists only once the
+// committee has agreed the workflow (see "Questions for the committee").
+const PDE_VALUES = [
+  { v: "Responsibility", ind: "Attendance", by: "Subject teachers + advisor",
+    r: ["Misses significant days without notice; submits many catch-up forms.", "Misses some days; communicates occasionally; submits several catch-up forms.", "Consistent attendance; communicates absences; submits few catch-up forms.", "Perfect attendance; proactive in notifying; submits no catch-up forms."] },
+  { v: "Respect", ind: "Attitude and conduct", by: "Subject teachers + advisor",
+    r: ["Disruptive behaviour; often disrespectful.", "Sometimes respectful; improving conduct.", "Respectful; participates constructively.", "Highly respectful; leads others in positive conduct."] },
+  { v: "Self-expression", ind: "Arts and performance activities", by: "Advisor",
+    r: ["Limited creativity; follows instructions only.", "Shows some creativity; needs guidance.", "Demonstrates originality and personal style.", "Highly creative; pushes boundaries of self-expression."] },
+  { v: "Holistic Education", ind: "Participation in special events", by: "Advisor",
+    r: ["Seldom joins in; lacks awareness of activities.", "Participates occasionally; shows emerging interest.", "Regular participation; values learning opportunities.", "Proactively engages; inspires others to join."] },
+  { v: "Wisdom", ind: "Physical activities", by: "Advisor",
+    r: ["Disengaged; lacks commitment to physical health.", "Participates but shows little initiative.", "Committed to personal fitness; encourages others.", "Advocates for health; leads initiatives in physical wellness."] },
+];
+const PDE_SECTIONS = [["overview", "Overview"], ["cycle", "How the year works"], ["roles", "Who does what"], ["screens", "Screens (preview)"], ["values", "Core values rubric"], ["teacher", "Teacher goals"], ["questions", "Questions for the committee"]];
+function pdeBand(rate) { return rate >= 100 ? ["Excellent", "ok"] : rate >= 90 ? ["Satisfactory", "warn"] : ["Needs improvement", "bad"]; }
+function pdeGoalCard(subject, target, months, plan) {
+  const done = months.filter((m) => m[1] !== null);
+  const latest = done.length ? done[done.length - 1][1] : null;
+  const rate = latest === null ? null : Math.round((latest / target) * 100);
+  const [band, cls] = rate === null ? ["Not started", ""] : pdeBand(rate);
+  return `<div class="card" style="margin:0">
+    <div class="row" style="justify-content:space-between;align-items:center"><h3 style="margin:0">${esc(subject)}</h3><span class="badge ${cls}">${band}</span></div>
+    <p class="small muted" style="margin:4px 0 8px">Target <b>${target}%</b> · latest ${latest === null ? "–" : `<b>${latest}%</b>`} · achievement rate ${rate === null ? "–" : `<b>${rate}%</b>`}</p>
+    <div style="display:flex;gap:6px;align-items:flex-end;height:70px;border-bottom:1px solid var(--border);position:relative">
+      <div title="Target" style="position:absolute;left:0;right:0;bottom:${target * 0.7}px;border-top:2px dashed var(--accent)"></div>
+      ${months.map(([m, s]) => `<div style="flex:1;text-align:center"><div style="height:${(s || 0) * 0.7}px;background:${s === null ? "transparent" : "var(--accent)"};opacity:${s === null ? 1 : .75};border-radius:3px 3px 0 0"></div></div>`).join("")}
     </div>
-    <div class="card"><h3>What's planned</h3>
-      <ul class="small">
-        <li><b>Goals</b>: a target score and action plan per subject. Bobaes in G6–G12 set their own; advisors enter them for G1–G5.</li>
-        <li><b>Core values</b>: Wisdom, Holistic Education, Self Expression, Responsibility and Respect, rated once per bobae per semester instead of in every subject.</li>
-        <li><b>Subject teachers</b>: one short comment on each goal. The achieved score comes from the marks entered here.</li>
-        <li><b>Leadership</b>: core values out of 20, and goals met out of goals set, by class and school.</li>
-      </ul>
-      <p class="small muted">Timeline: Fall 2026, the teacher working group agrees the framework. Spring 2027, PDE opens here and can print as page 3 of the report card.</p>
-    </div>`;
+    <div style="display:flex;gap:6px" class="small muted">${months.map(([m]) => `<div style="flex:1;text-align:center">${m}</div>`).join("")}</div>
+    <p class="small" style="margin:8px 0 0"><b>My action plan:</b> ${esc(plan)}</p>
+  </div>`;
+}
+function viewPde(main) {
+  const sec = PDE_SECTIONS.some(([k]) => k === S.pdeSec) ? S.pdeSec : "overview";
+  const ex = `<span class="badge">Example data</span>`;
+  const body = {
+    overview: `
+      <div class="card pde-hero">
+        <div class="big">🌱</div>
+        <h1>Academic Purpose-Driven Education</h1>
+        <p><span class="badge warn">Work in progress</span> <span class="badge">Being designed with the teacher committee</span></p>
+        <p class="lede" style="max-width:680px;margin:10px auto">Every bobae sets a goal for each subject on the first day of school and works on an action plan with their teacher.
+          Teachers record progress through the year, so the bobae, their parents and the Director can all see whether they're on track.</p>
+      </div>
+      <div class="stats">
+        <div class="stat"><div class="k">Day 1</div><div class="v" style="font-size:16px">Goal + action plan</div></div>
+        <div class="stat"><div class="k">Every month</div><div class="v" style="font-size:16px">Score + feedback</div></div>
+        <div class="stat"><div class="k">Each semester</div><div class="v" style="font-size:16px">Core values 1–4</div></div>
+        <div class="stat"><div class="k">End of year</div><div class="v" style="font-size:16px">Goal achievement ratio</div></div>
+      </div>
+      <div class="card"><h3>What this section is for</h3>
+        <p class="small">These pages show how PDE <i>could</i> work in this app, so the committee can react to something concrete. Nothing here saves data.
+          Once the committee agrees the workflow, PDE will use the same sign-in, roster and marks as the rest of the app, so <b>no score is ever typed twice</b>.</p>
+        <p class="small">Start with <a href="#" data-pde="cycle">How the year works</a>, then go through <a href="#" data-pde="questions">Questions for the committee</a>.</p>
+      </div>`,
+    cycle: `
+      <h2>How the year works ${ex}</h2>
+      <div class="table-wrap"><table>
+        <thead><tr><th>When</th><th>Bobae</th><th>Subject teacher</th><th>Advisor</th><th>Parents · Director</th></tr></thead>
+        <tbody>
+          <tr><td><b>Day 1</b></td><td>Sets a <b>target score</b> and <b>action plan</b> for each core subject</td><td>Agrees the goal; adds their part of the action plan</td><td>Enters goals for G1–G5</td><td>—</td></tr>
+          <tr><td><b>Every month</b><br><span class="small muted">Sep–Dec, Feb–Jun</span></td><td>Checks whether they're on track; writes a short reflection</td><td><b>Core subjects</b> (Chinese, English, Maths, Science) record the month's score and a line of feedback</td><td>Follows up with bobaes who are off track</td><td>Parents see progress and can reply</td></tr>
+          <tr><td><b>Each semester</b></td><td>—</td><td>Rate <b>Responsibility</b> and <b>Respect</b> (1–4)</td><td>Rate <b>all five core values</b> (1–4)</td><td>Director sees the overview</td></tr>
+          <tr><td><b>End of semester / year</b></td><td>Final reflection</td><td>Final score (from the report card marks)</td><td>Confirms the goal achievement ratio</td><td>Goals met out of goals set, by class and school</td></tr>
+        </tbody></table></div>
+      <div class="card"><h3>Teachers of ICT, Art, PE and similar subjects</h3>
+        <p class="small">They teach every class, so instead of a goal per bobae they write <b>one teacher goal and action plan per division</b> (Primary, Middle School, IGCSE). See <a href="#" data-pde="teacher">Teacher goals</a>.</p></div>
+      <div class="card"><h3>Achievement rate (proposal)</h3>
+        <p class="small"><b>Achievement rate = latest score ÷ target score.</b> For example, a target of 85% and a score of 80% gives 94%.</p>
+        <p class="small">Bands: <span class="badge ok">Excellent</span> 100% or more · <span class="badge warn">Satisfactory</span> 90–99% · <span class="badge bad">Needs improvement</span> below 90%. The committee sets the real thresholds.</p></div>`,
+    roles: `
+      <h2>Who does what</h2>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Who</th><th>Enters</th><th>Sees</th></tr></thead>
+        <tbody>
+          <tr><td><b>Bobae (G6–G12)</b></td><td>Own goals, action plans and monthly reflections</td><td>Own goals and progress only</td></tr>
+          <tr><td><b>Bobae (G1–G5)</b></td><td>Nothing: the advisor enters for them</td><td>—</td></tr>
+          <tr><td><b>Core subject teacher</b><br><span class="small muted">Chinese, English (all types), Maths, Science</span></td><td>Monthly score and feedback for their own classes; Responsibility and Respect ratings</td><td>Their own bobaes, their own subject</td></tr>
+          <tr><td><b>ICT, Art, PE … teacher</b></td><td>Teacher goal and action plan per division; Responsibility and Respect ratings</td><td>Their own classes</td></tr>
+          <tr><td><b>Class advisor / co-advisor</b></td><td>All five core values; goals for G1–G5; follow-up notes</td><td>Everything for their class</td></tr>
+          <tr><td><b>Parent</b></td><td>Feedback</td><td>Their own child's progress</td></tr>
+          <tr><td><b>Director / leadership</b></td><td>Nothing</td><td>Whole-school overview: goals met, core values, bobaes off track</td></tr>
+        </tbody></table></div>
+      <p class="small muted">Privacy works like the marks lists: each person can only open what SharePoint lets them, and bobaes never get access to a list that holds other bobaes' marks.</p>`,
+    screens: `
+      <h2>What a bobae would see ${ex}</h2>
+      <p class="small muted">Example: a Grade 8 bobae in October. Bars are monthly scores; the dashed line is their target.</p>
+      <div class="class-grid" style="grid-template-columns:repeat(auto-fill,minmax(280px,1fr))">
+        ${pdeGoalCard("Maths", 85, [["Sep", 78], ["Oct", 84], ["Nov", null], ["Dec", null]], "Do 10 practice questions every Tuesday and Thursday; ask for help after class when I'm stuck.")}
+        ${pdeGoalCard("English", 80, [["Sep", 72], ["Oct", 70], ["Nov", null], ["Dec", null]], "Read 20 minutes a day and write one paragraph each week for feedback.")}
+        ${pdeGoalCard("Science", 75, [["Sep", 79], ["Oct", 82], ["Nov", null], ["Dec", null]], "Make flashcards for each topic and review them before every quiz.")}
+        ${pdeGoalCard("Chinese", 90, [["Sep", 88], ["Oct", 91], ["Nov", null], ["Dec", null]], "Learn 15 new characters a week with my study group.")}
+      </div>
+      <h2>What a core subject teacher would enter each month ${ex}</h2>
+      <div class="table-wrap"><table class="entry">
+        <thead><tr><th>Bobae</th><th class="num">Target</th><th class="num">Sep</th><th class="num">Oct</th><th class="num">Rate</th><th>Feedback (October)</th></tr></thead>
+        <tbody>
+          ${[["Breck", 85, 78, 84], ["Coleta", 70, 62, 66], ["Dennis", 90, 91, 93]].map(([n, t, s, o]) => { const r = Math.round((o / t) * 100), [b, c] = pdeBand(r);
+            return `<tr><td><b>${n}</b></td><td class="num">${t}%</td><td class="num">${s}</td><td class="num"><input class="score" value="${o}" disabled></td><td class="num"><span class="badge ${c}">${r}%</span></td><td><input disabled placeholder="One line of feedback"></td></tr>`; }).join("")}
+        </tbody></table></div>
+      <h2>What the Director would see ${ex}</h2>
+      <div class="stats">
+        <div class="stat"><div class="k">Goals on track (school)</div><div class="v">71%</div></div>
+        <div class="stat"><div class="k">Bobaes off track in 2+ subjects</div><div class="v">14</div></div>
+        <div class="stat"><div class="k">Average core values (out of 20)</div><div class="v">15.2</div></div>
+        <div class="stat"><div class="k">Monthly scores entered</div><div class="v">88%</div></div>
+      </div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Grade</th><th class="num">Goals on track</th><th class="num">Off track</th><th class="num">Core values /20</th></tr></thead>
+        <tbody>${[["G6", 74, 2, 15.8], ["G7", 68, 3, 14.9], ["G8", 70, 4, 15.1], ["G9-1", 66, 5, 14.6]].map(([g, a, b, c]) => `<tr><td>${g}</td><td class="num">${a}%</td><td class="num">${b}</td><td class="num">${c}</td></tr>`).join("")}</tbody></table></div>
+      <p class="small muted">Parents would see the same cards as their child, plus a box to reply.</p>`,
+    values: `
+      <h2>Core values rubric</h2>
+      <p class="small muted">From the current PDE template. Each value is rated 1–4. Subject teachers rate the first two; the advisor rates all five.</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Core value</th><th>Rated by</th><th>Beginning (1)</th><th>Developing (2)</th><th>Proficient (3)</th><th>Advanced (4)</th></tr></thead>
+        <tbody>${PDE_VALUES.map((x) => `<tr><td><b>${esc(x.v)}</b><div class="small muted">${esc(x.ind)}</div></td><td class="small">${esc(x.by)}</td>${x.r.map((t) => `<td class="small">${esc(t)}</td>`).join("")}</tr>`).join("")}</tbody>
+      </table></div>`,
+    teacher: `
+      <h2>Teacher goals ${ex}</h2>
+      <p class="small muted">For teachers who teach every class (ICT, Art, PE …): one goal and action plan per division. Example from ICT, 2025–26.</p>
+      ${[["Primary School (Grades 2–5)", "By the end of the year, 85% of Primary students will design, fix and complete their own simple programs and digital projects.",
+          ["Model debugging techniques; students build interactive stories, thinking through problems step by step.", "Run real-world data experiments; students organise results into spreadsheets and charts.", "Guide students to curate a digital folder showing their growth in typing, design and organisation."]],
+         ["Middle School (Grades 6–8)", "Every student completes a real-world capstone project that combines computing and data management.",
+          ["Move students from block coding to text-based languages through digital art and games.", "Facilitate mobile-app prototypes with a focus on user experience.", "Lead seminars on AI and privacy; students research and present arguments."]],
+         ["Grades 9–10 (IGCSE ICT 0417)", "100% pass rate, with 70% of students at A*–B, through practical training and exam mastery.",
+          ["Bi-weekly diagnostic theory tests so students close their own gaps.", "Monthly timed practical sprints under exam conditions.", "Workshops on complex spreadsheet formulas and CSS; coaching on structured written answers."]]]
+        .map(([d, g, plan]) => `<div class="card"><h3>${esc(d)}</h3><p class="small"><b>Goal:</b> ${esc(g)}</p><ul class="small">${plan.map((p) => `<li>${esc(p)}</li>`).join("")}</ul>
+          <p class="small muted">End of year: the teacher records whether the goal was met, with evidence.</p></div>`).join("")}`,
+    questions: `
+      <h2>Questions for the committee</h2>
+      <p class="small muted">These decide how PDE gets built. Each answer can be a one-line decision.</p>
+      <ol class="steps small">
+        <li><b>Which subjects have monthly goals?</b> Chinese, English (all types), Maths, Science. What about IGCSE/AS versions, Social Studies and History?</li>
+        <li><b>What is the "monthly score"?</b> A monthly test, or the teacher's running average? Is the December score the same as the report card mark?</li>
+        <li><b>Who sets the target?</b> The bobae alone, or agreed with the teacher? Can it change during the year?</li>
+        <li><b>Achievement rate and bands:</b> is latest ÷ target right? What are the thresholds for Excellent, Satisfactory and Needs improvement?</li>
+        <li><b>Core values:</b> monthly or once a semester? Subject teachers rate Responsibility and Respect; advisors rate all five. Is that right?</li>
+        <li><b>Teacher goals</b> (ICT, Art, PE …): who reviews them, and how is "achieved" measured?</li>
+        <li><b>G1–G5:</b> which subjects, and does the advisor enter everything?</li>
+        <li><b>Parents:</b> an online view with a sign-in, or a printed page each month or semester? Where does parent feedback come from?</li>
+        <li><b>Director overview:</b> which three numbers matter most?</li>
+        <li><b>Student access:</b> can every G6–G12 bobae sign in with their school account? (G11–G12 Teams access is still incomplete.)</li>
+        <li><b>Report card:</b> should PDE print as page 3, and from which semester?</li>
+      </ol>
+      <p class="small">Proposed timing: the committee answers these in <b>Fall 2026</b>; PDE opens for one grade as a pilot, then for everyone in <b>Spring 2027</b>.</p>`,
+  }[sec];
+  main.innerHTML = `
+    ${notice("warn", "<b>Work in progress.</b> Academic Purpose-Driven Education is being designed with a committee of teachers. These pages are a preview to discuss; nothing here is saved, and all numbers are examples.")}
+    <div class="row" style="gap:6px;margin-bottom:14px">${PDE_SECTIONS.map(([k, n]) => `<button class="btn small ${k === sec ? "primary" : ""}" data-pde="${k}">${n}</button>`).join("")}</div>
+    ${body}`;
+  $$("[data-pde]", main).forEach((b) => (b.onclick = (e) => { e.preventDefault(); S.pdeSec = b.dataset.pde; render(); window.scrollTo(0, 0); }));
 }
 
 // ── Help ─────────────────────────────────────────────────────
