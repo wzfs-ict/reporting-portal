@@ -30,6 +30,22 @@ Teachers enter **marks, behaviour, subject remarks and awards** for their own cl
 
 Score is limited to 0–100 and behaviour to 1–4 **in SharePoint itself**, so even editing the list directly can't store a bad value. Version history is on for every list.
 
+## PDE: bobae goals (second SharePoint site)
+
+Bobaes (G6–G12, ZSA) sign in with their school account and see only **My goals**: a target score, a one-sentence goal and an action plan for each core subject. Advisors enter goals for G1–G5. Subject teachers read their classes' goals and write one line of feedback (**PDE → Bobae goals**).
+
+The data lives on a separate private site, **WZFS PDE** (`/sites/WZFSPDE`), so bobaes never hold any permission on the marks site:
+
+| List | Bobaes | Staff (Reporting Staff group) |
+|---|---|---|
+| PDE Goals | Contribute, item-level (own goals only) | Design (read all, write feedback) |
+| PDE Students | Each row shared only with its own bobae | Read |
+| PDE Settings | Read (core subjects per grade + current term) | Read |
+
+Set up in **Setup → 7 · PDE site**: create the lists, check the core subjects, then **Sync bobaes and apply permissions** (re-run after roster changes; only new bobaes are processed). The app recognises a bobae because their account can't open the marks site but appears in PDE Students.
+
+Limit: SharePoint can't lock single columns, so a bobae could edit the feedback text on their own goal directly in SharePoint. The app never allows it, and version history shows who changed what.
+
 ## First-time setup
 
 1. **SharePoint site**: create a Team site named `WZFS Reporting` (path `/sites/WZFSReporting`), set to Private. Owners: ICT, leadership, Admin Office. Don't add teachers as members.

@@ -31,6 +31,13 @@ window.APP_CONFIG = {
   // SharePoint group that gets Contribute on the entry lists (Setup → Permissions)
   staffGroup: "Reporting Staff",
 
+  // PDE: bobae goals live on a SEPARATE private site so bobaes never get access to the marks site.
+  pde: {
+    sitePath: "/sites/WZFSPDE",
+    studentGroup: "PDE Students",
+    advisorEntryGrades: ["G1", "G2", "G3", "G4", "G5"],   // advisors enter goals for these grades; the rest enter their own
+  },
+
   // ── Term ─────────────────────────────────────────────────
   academicYear: "2026-27",
   semester: "Fall",               // Fall | Spring

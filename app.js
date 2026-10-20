@@ -122,8 +122,10 @@ const batchFailures = (res) => res.filter((x) => !x || x.status >= 300);
 const itemsUrl = (listName) => `/sites/${S.siteId}/lists/${S.lists[listName].id}/items`;
 
 // SharePoint REST (only used by Setup → Permissions)
-async function sp(method, path, body, headers = {}) {
-  const r = await fetch(`${S.siteUrl}/_api/${path}`, {
+const sp = (method, path, body, headers) => spAt(S.siteUrl, method, path, body, headers);
+async function spAt(siteUrl, method, path, body, headers = {}) {
+  if (S.viewAs && method !== "GET") throw new Error("Preview only: nothing is saved while you're viewing as someone else.");
+  const r = await fetch(`${siteUrl}/_api/${path}`, {
     method, headers: { Authorization: "Bearer " + await token(SP_SCOPES), Accept: "application/json;odata=nometadata",
       "Content-Type": "application/json;odata=verbose", ...headers },
     body: body ? JSON.stringify(body) : undefined });
@@ -186,6 +188,7 @@ const advisorName = (g) => (P().advisors[g] && P().advisors[g].name) || "";
 // ── Shell ────────────────────────────────────────────────────
 function tabsFor() {
   if (S.viewAs === "parent") return [["parent", "Parent view"]];
+  if (S.viewAs === "student" || (S.studentMode && !S.viewAs)) return [["mygoals", "My goals"]];
   const t = [["classes", "My classes"], ["awards", "Awards"]];
   if (viewGrades().length) t.push(["advisor", headGrades().length && !advisorGrades().length && !isLeader() ? "Division view" : "Advisor view"]);
   if (isReportTeam()) t.push(["export", "Report cards"]);
@@ -203,8 +206,8 @@ function renderShell() {
   $("#signOut").onclick = () => pca.logoutRedirect({ account });
   const va = $("#viewAs");
   if (va) va.onchange = () => {
-    S.viewAs = va.value; S.me = va.value === "parent" ? "parent@preview" : (va.value || S.realMe);
-    S.meName = va.value === "parent" ? "Parent (preview)" : nameOf(S.me);
+    S.viewAs = va.value; S.me = ["parent", "student"].includes(va.value) ? va.value + "@preview" : (va.value || S.realMe);
+    S.meName = { parent: "Parent (preview)", student: "a bobae (preview)" }[va.value] || nameOf(S.me);
     S.tab = tabsFor()[0][0]; S.awSel.clear(); render(); window.scrollTo(0, 0);
   };
   if (S.loadErr) { $("#tabs").innerHTML = ""; return; }
@@ -225,7 +228,7 @@ function viewAsMenu() {
     <optgroup label="Leadership">${p.leadership.map((e) => opt(e)).join("")}</optgroup>
     <optgroup label="Class advisors">${advisorOpts.join("")}</optgroup>
     <optgroup label="Subject teachers">${teachers.map((e) => opt(e)).join("")}</optgroup>
-    <optgroup label="Parents">${opt("parent", "A parent (what they receive)")}</optgroup>
+    <optgroup label="Parents and bobaes">${opt("parent", "A parent (what they receive)")}${opt("student", "A bobae (My goals)")}</optgroup>
   </select>`;
 }
 function render() {
@@ -233,7 +236,7 @@ function render() {
   const main = $("#main");
   if (!account) return signInScreen(main);
   if (S.loadErr) return errorScreen(main);
-  const views = { classes: viewClasses, newclass: viewNewClass, entry: viewEntry, advisor: viewAdvisor, ptc: viewPtc, awards: viewAwards, export: viewExport, setup: viewSetup, pde: viewPde, help: viewHelp, parent: viewParent };
+  const views = { classes: viewClasses, newclass: viewNewClass, entry: viewEntry, advisor: viewAdvisor, ptc: viewPtc, awards: viewAwards, export: viewExport, setup: viewSetup, pde: viewPde, help: viewHelp, parent: viewParent, mygoals: viewMyGoals };
   if (!tabsFor().some(([k]) => k === ({ newclass: "classes", entry: S.back, ptc: "advisor" }[S.tab] || S.tab))) S.tab = tabsFor()[0][0];
   (views[S.tab] || viewClasses)(main);
   if (S.viewAs) main.insertAdjacentHTML("afterbegin", notice("warn", `<b>Preview:</b> you're seeing the app as <b>${esc(S.meName)}</b>. Read-only: nothing is saved. Their real access is set in SharePoint, so a few things may look slightly different for them. <a href="#" id="endPreview">Back to myself</a>`)
@@ -1088,6 +1091,8 @@ function viewSetup(main) {
       <div id="mgAwards"></div>
     </div>
 
+    ${pdeSetupCard()}
+
     <div class="card"><h3>6 · Deployment check</h3>
       <p class="small">Redirect URI for this address (add it in Entra → App registration → Authentication → Single-page application): <code>${esc(redirectUri)}</code></p>
       <p class="small">Signed in as <code>${esc(S.me)}</code> · site <code>${esc(S.siteId)}</code></p>
@@ -1195,7 +1200,9 @@ function viewSetup(main) {
     try {
       if (S.settingsItem) await graph("PATCH", `${itemsUrl(L.settings)}/${S.settingsItem.id}/fields`, { Json: JSON.stringify(json, null, 1) });
       else await graph("POST", itemsUrl(L.settings), { fields: { Title: "config", Json: JSON.stringify(json, null, 1) } });
-      await loadAll(); render(); flash("ok", "Saved. Re-run Permissions if advisors changed.");
+      await loadAll();
+      if (S.pde.loaded) { try { await savePdeSettings(); await loadPde(); } catch (_) {} }   // bobaes read the term from the PDE site
+      render(); flash("ok", "Saved. Re-run Permissions if advisors changed.");
     } catch (e) { flash("error", e.message); }
   };
 
@@ -1207,6 +1214,7 @@ function viewSetup(main) {
     $("#applyPerms").disabled = false;
   };
   bindYearTools();
+  bindPdeSetup();
 }
 
 // Setup step 5: maintain subjects and the award catalogue in place.
@@ -1353,7 +1361,7 @@ const PDE_VALUES = [
   { v: "Wisdom", ind: "Physical activities", by: "Advisor",
     r: ["Disengaged; lacks commitment to physical health.", "Participates but shows little initiative.", "Committed to personal fitness; encourages others.", "Advocates for health; leads initiatives in physical wellness."] },
 ];
-const PDE_SECTIONS = [["overview", "Overview"], ["cycle", "How the year works"], ["roles", "Who does what"], ["screens", "Screens (preview)"], ["values", "Core values rubric"], ["teacher", "Teacher goals"], ["questions", "Questions for the committee"]];
+const PDE_SECTIONS = [["goals", "Bobae goals (live)"], ["overview", "Overview"], ["cycle", "How the year works"], ["roles", "Who does what"], ["screens", "Screens (preview)"], ["values", "Core values rubric"], ["teacher", "Teacher goals"], ["questions", "Questions for the committee"]];
 const PDE_QUESTIONS = [
   { q: "One goal per subject for the semester, or a new goal every month? And what happens when a goal is reached?",
     why: "This sets how much bobaes and teachers enter, and what keeps a bobae motivated once they hit their target.",
@@ -1421,7 +1429,7 @@ function pdeGoalCard(subject, target, months, plan) {
   </div>`;
 }
 function viewPde(main) {
-  const sec = PDE_SECTIONS.some(([k]) => k === S.pdeSec) ? S.pdeSec : "overview";
+  const sec = PDE_SECTIONS.some(([k]) => k === S.pdeSec) ? S.pdeSec : (S.pde && S.pde.loaded ? "goals" : "overview");
   const ex = `<span class="badge">Example data</span>`;
   const body = {
     overview: `
@@ -1537,12 +1545,16 @@ function viewPde(main) {
       <p class="small">Proposed timing: the committee answers these in <b>Fall 2026</b>; PDE opens for one grade as a pilot, then for everyone in <b>Spring 2027</b>.</p>
       ${isAdmin() ? `<div class="card" style="border-style:dashed"><h3>ICT notes <span class="badge">Only admins see this</span></h3>
         <p class="small"><b>Student sign-in:</b> every bobae has a Microsoft school account, so G6–G12 can sign in to PDE. Before the pilot: run a short sign-in training per class and standardise account names so they're easy to remember (the current pattern is <code>fullname.calledname + graduation year</code>, e.g. <code>eunseongchoi.eden2033@</code>). Check G11–G12 Teams access at the same time.</p></div>` : ""}`,
+    goals: `<div id="pdeGoals"></div>`,
   }[sec];
   main.innerHTML = `
-    ${notice("warn", "<b>Work in progress.</b> Academic Purpose-Driven Education is being designed with a committee of teachers. These pages are a preview to discuss; nothing here is saved, and all numbers are examples.")}
+    ${sec === "goals"
+      ? notice("ok", "<b>Bobae goals are live.</b> Bobaes enter a target, goal and action plan for each core subject; you can read them and add feedback. The rest of PDE (monthly scores, core values) is still being designed with the teacher committee.")
+      : notice("warn", "<b>Work in progress.</b> Academic Purpose-Driven Education is being designed with a committee of teachers. These pages are a preview to discuss; nothing here is saved, and all numbers are examples.")}
     <div class="row" style="gap:6px;margin-bottom:14px">${PDE_SECTIONS.map(([k, n]) => `<button class="btn small ${k === sec ? "primary" : ""}" data-pde="${k}">${n}</button>`).join("")}</div>
     ${body}`;
   $$("[data-pde]", main).forEach((b) => (b.onclick = (e) => { e.preventDefault(); S.pdeSec = b.dataset.pde; render(); window.scrollTo(0, 0); }));
+  if (sec === "goals") viewPdeGoals($("#pdeGoals"));
 }
 
 // ── Help ─────────────────────────────────────────────────────
@@ -1570,7 +1582,13 @@ async function start() {
     if (!account) return render();
     S.me = S.realMe = lc(account.username); S.meName = account.name || S.me; S.viewAs = "";
     S.loadErr = null;
-    await loadAll();
+    try { await loadAll(); }
+    catch (e) {
+      // No access to the marks site: a bobae signing in for their goals lands on the PDE site instead.
+      if ([401, 403, 404].includes(e.status) && typeof tryStudentMode === "function" && await tryStudentMode()) return render();
+      throw e;
+    }
+    if (typeof loadPde === "function") await loadPde();   // never fails; sets S.pde.err instead
     const resume = sessionStorage.getItem("rp_tab"); sessionStorage.removeItem("rp_tab");
     if (resume && tabsFor().some(([k]) => k === resume)) S.tab = resume;
     else if (isAdmin() && !Object.keys(S.lists).includes(L.students)) S.tab = "setup";
