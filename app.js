@@ -1423,53 +1423,43 @@ const PDE_VALUES = [
 ];
 const PDE_SECTIONS = [["goals", "Bobae goals (live)"], ["overview", "Overview"], ["cycle", "How the year works"], ["roles", "Who does what"], ["screens", "Screens (preview)"], ["values", "Core values rubric"], ["teacher", "Teacher goals"], ["questions", "Questions for the committee"]];
 const PDE_QUESTIONS = [
-  { q: "One goal per subject for the semester, or a new goal every month? And what happens when a goal is reached?",
-    why: "This sets how much bobaes and teachers enter, and what keeps a bobae motivated once they hit their target.",
-    options: [
-      "<b>A.</b> One goal per subject <b>per semester</b>, checked every month (fewer entries; monthly scores show the path).",
-      "<b>B.</b> A new goal <b>every month</b> (more entries; very short-term).",
-      "<b>Which subjects?</b> Chinese, English (all types), Maths, Science. Include IGCSE/AS versions, Social Studies and History?",
-      "<b>Goal reached early:</b> raise the target (a stretch goal), keep it and aim to stay there, and/or count towards the <i>PDE Goal Master Award</i>?",
-      "<b>Goal not reached:</b> carry it into next semester with a new action plan, or start fresh?" ],
-    suggest: "A, for the core subjects only. When a goal is reached, the bobae sets a stretch target with their teacher; reaching it twice counts towards the Goal Master Award." },
-  { q: "What is the \"monthly score\"?",
-    options: ["A monthly test, or the teacher's running average for the month?", "Is the December score the same number as the report card mark, so it's only typed once?"] },
-  { q: "Who sets the target, and can it change?",
-    options: ["The bobae alone, the bobae with the teacher, or the teacher?", "Can the target change during the semester (for example after the first month)?"] },
-  { q: "How do we measure achievement?",
-    why: "The achievement rate shows how close a bobae is to their target, as a percentage.",
-    body: `<p class="small"><b>Achievement rate = this month's score ÷ target score × 100.</b> Examples for a bobae whose Maths target is <b>85%</b>:</p>
-      <div class="table-wrap" style="max-width:520px"><table><thead><tr><th>Month's score</th><th class="num">Achievement rate</th><th>Band (proposed)</th></tr></thead><tbody>
-        <tr><td>75%</td><td class="num">88%</td><td><span class="badge bad">Needs improvement</span></td></tr>
-        <tr><td>80%</td><td class="num">94%</td><td><span class="badge warn">Satisfactory</span></td></tr>
-        <tr><td>85%</td><td class="num">100%</td><td><span class="badge ok">Excellent: goal met</span></td></tr>
-        <tr><td>92%</td><td class="num">108%</td><td><span class="badge ok">Excellent: goal beaten</span></td></tr>
-      </tbody></table></div>`,
-    options: ["Are these bands right: <b>Excellent</b> 100% or more, <b>Satisfactory</b> 90–99%, <b>Needs improvement</b> below 90%?",
-      "Is a goal <b>met</b> when the final (end-of-semester) score reaches the target, or when the average across the months does?",
-      "Should very easy or impossible targets be checked, e.g. the teacher approves any target below the bobae's current score or at 100%?"] },
-  { q: "Core values: how often?",
-    options: ["Monthly, or once a semester?", "Subject teachers rate Responsibility and Respect; advisors rate all five. Is that right?"] },
-  { q: "Teacher goals (ICT, Art, PE …)",
-    options: ["Who reviews them (division head, VP)?", "How is \"achieved\" shown at the end of the year: evidence, results, a short reflection?"] },
-  { q: "Primary (G1–G5)",
-    options: ["Which subjects have goals?", "Does the advisor enter everything for the bobae, or do G4–G5 start entering their own?"] },
-  { q: "Parents: how do they see their own child's progress, and only their own child's?",
-    why: "Parents must never see another bobae's work. Here are the realistic ways to do that, from simplest to most complete.",
-    options: [
-      "<b>A. Printed or PDF progress page</b> each month or semester, sent by the advisor (for example on WeChat). No online access, so no risk. Parent feedback comes back to the advisor.",
-      "<b>B. Through the bobae's own login at home.</b> The parent looks with their child. Nothing new to set up, but it relies on the family sharing the login.",
-      "<b>C. A parent list.</b> The Admin Office keeps a list of <i>Student ID → parent email</i>. Parents sign in with a Microsoft account, and the app shows only the children linked to that email. SharePoint enforces it: each bobae's PDE record is shared only with the parents on the list. This is the most complete option, but every parent needs a Microsoft account and we need to keep the list up to date." ],
-    suggest: "Start the pilot with A (and B for families who want it). Move to C once the Admin Office has a parent email list, because the same list can be reused for other parent communication." },
-  { q: "What should the Director's overview show?",
-    body: `<p class="small">Proposed, by grade and for the whole school:</p>`,
-    options: ["<b>Goals set</b> (how many bobaes have a goal in each subject)", "<b>Achievement rate</b> (average, by grade and by subject)",
-      "<b>Goals met</b> (out of goals set)", "<b>Subject ranking</b> (subjects where the most and the fewest goals are being met)",
-      "<b>Help needed</b> (bobaes off track in two or more subjects, or two months in a row)"],
-    suggest: "Confirm these five, and add anything else the Chairman wants to see. A preview is on the Screens page." },
-  { q: "Teachers' view: should PDE print as page 3 of the report card?",
-    why: "ICT and leadership support printing it. We'd like to hear from teachers before deciding.",
-    options: ["Yes, from which semester?", "Or keep PDE separate from the report card (a PDE page of its own)?"] },
+  { q: "What is PDE mainly for?",
+    why: "Every other answer follows from this one.",
+    options: ["<b>Academic achievement:</b> goals are mostly target scores in subjects.",
+      "<b>Personal character:</b> goals are mostly about values and personal development.",
+      "<b>Deliberately both:</b> academic goals and character goals, side by side."] },
+  { q: "What should students set goals for?",
+    options: ["Only the four core subjects (Chinese, English, Maths and Science)?",
+      "Or other subjects too, such as ICT, Art and PE?"] },
+  { q: "Should students set goals for core values?",
+    options: ["Should students have separate goals for values and personal development, such as responsibility, kindness, perseverance and service?",
+      "If so, which values should the school use? (The current PDE template rates the five school values: Wisdom, Holistic Education, Self-expression, Responsibility and Respect.)"] },
+  { q: "When should students write their goals?",
+    options: ["At the beginning of each semester?", "At the beginning of each month?", "After receiving mid-term results?", "At another point in the school calendar?"] },
+  { q: "What should a goal and action plan contain?",
+    options: ["A target score, a personal goal and specific actions? Some of these, or something else?",
+      "Should expectations differ between Primary, Middle and High School?"] },
+  { q: "How often should progress be reviewed, and by whom?",
+    options: ["Monthly, at mid-term, or at both points?", "Who reviews and comments on progress: the subject teacher, the advisor, or both?"] },
+  { q: "How should achievement be measured?",
+    options: ["Through scores, teacher feedback, demonstrated behaviour, completed actions, or a combination of these?"] },
+  { q: "What happens when a student reaches a goal, or doesn't?",
+    options: ["When a goal is reached: set a new target, extend the existing goal, or maintain the achievement?",
+      "When a goal is not reached: carry it forward with a new plan, or start fresh next semester?"] },
+  { q: "How should parents and school leadership be involved?",
+    options: ["Should parents see goals and progress online, or during PTC meetings?",
+      "What overview should advisors, division heads and the Director receive?"],
+    body: `<details class="small"><summary>Ways to let parents see only their own child (for reference)</summary><ul>
+      <li><b>Printed or PDF page</b> each month or semester, given by the advisor or at the PTC meeting. No online access needed.</li>
+      <li><b>Through the bobae's own login</b> at home, with the parent looking alongside their child.</li>
+      <li><b>A parent list</b> (Student ID → parent email) kept by the Admin Office, so a parent's sign-in shows only their own children.</li></ul></details>` },
+];
+// A starting point the committee can accept, change or reject. Not school policy.
+const PDE_FIRST_STEP = [
+  "<b>G1–G5:</b> advisors help students set age-appropriate goals.",
+  "<b>G6–G12:</b> students write their own goals and action plans, starting with the four core subjects.",
+  "<b>Other subjects and core values:</b> left open for the committee to decide.",
+  "<b>Timing:</b> one school-wide cycle, e.g. set goals at the start of each semester, review them at mid-term and at the end of the semester.",
 ];
 function pdeBand(rate) { return rate >= 100 ? ["Excellent", "ok"] : rate >= 90 ? ["Satisfactory", "warn"] : ["Needs improvement", "bad"]; }
 function pdeGoalCard(subject, target, months, plan) {
@@ -1593,15 +1583,20 @@ function viewPde(main) {
           <p class="small muted">End of year: the teacher records whether the goal was met, with evidence.</p></div>`).join("")}`,
     questions: `
       <h2>Questions for the committee</h2>
-      <p class="small muted">These decide how PDE gets built. For each one, pick an option (or suggest a better one). A one-line answer is enough.</p>
+      <p class="small">Initial discussion points. The app is ready to support whatever the school decides; the <b>educational decisions belong to the committee</b>. Nothing here is school policy yet.</p>
       ${PDE_QUESTIONS.map((x, i) => `
         <div class="card">
           <h3>${i + 1}. ${x.q}</h3>
           ${x.why ? `<p class="small muted" style="margin-top:0">${x.why}</p>` : ""}
-          ${x.body || ""}
           ${x.options ? `<ul class="small">${x.options.map((o) => `<li>${o}</li>`).join("")}</ul>` : ""}
+          ${x.body || ""}
           ${x.suggest ? `<p class="small"><span class="badge info">Suggestion</span> ${x.suggest}</p>` : ""}
         </div>`).join("")}
+      <div class="card" style="border-color:var(--accent)">
+        <h3>A possible first step <span class="badge">Proposal, for the committee to accept or change</span></h3>
+        <ul class="small">${PDE_FIRST_STEP.map((x) => `<li>${x}</li>`).join("")}</ul>
+        <p class="small muted">The goal-setting already built in the app (target, goal and action plan for the four core subjects) is a starting point and can be changed once the committee decides.</p>
+      </div>
       <p class="small">Proposed timing: the committee answers these in <b>Fall 2026</b>; PDE opens for one grade as a pilot, then for everyone in <b>Spring 2027</b>.</p>
       ${isAdmin() ? `<div class="card" style="border-style:dashed"><h3>ICT notes <span class="badge">Only admins see this</span></h3>
         <p class="small"><b>Student sign-in:</b> every bobae has a Microsoft school account, so G6–G12 can sign in to PDE. Before the pilot: run a short sign-in training per class and standardise account names so they're easy to remember (the current pattern is <code>fullname.calledname + graduation year</code>, e.g. <code>eunseongchoi.eden2033@</code>). Check G11–G12 Teams access at the same time.</p></div>` : ""}`,
