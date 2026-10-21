@@ -81,7 +81,7 @@ window.APP_CONFIG = {
     "dlee@zhongshischool.org": "Daniel Lee", "mlee@zhongshischool.org": "Moody Lee", "rrussell@zhongshischool.org": "Roger Russell",
     "jpaa@zhongshischool.org": "Jonathan Pa-a", "agong@zhongshischool.org": "Alan Gong", "mparker@zhongshischool.org": "Mae Parker",
     "gparker@zhongshischool.org": "Gregg Parker", "randy@zhongshischool.org": "Randy Wang", "gliu@zhongshischool.org": "Grace Liu",
-    "w_reacher@zhongshischool.org": "Reacher Williams", "mgangaramani@zhongshischool.org": "Meera Gangaramani",
+    "w_reacher@zhongshischool.org": "Reacher Williams",
     "bbirkenstock@zhongshischool.org": "Brendon Birkenstock", "eduarte@zhongshischool.org": "Eri Duarte", "kyang@zhongshischool.org": "Kimberly Yang",
   },
   // Teaching staff — pre-fills Setup → Permissions (the "Reporting Staff" group).
@@ -89,7 +89,7 @@ window.APP_CONFIG = {
     // Primary School
     "xtobias@zhongshischool.org", "schoe@zhongshischool.org", "smuivah@zhongshischool.org",
     "msiao@zhongshischool.org", "mmabini@zhongshischool.org", "osubira@zhongshischool.org",
-    "lrodriguez@zhongshischool.org", "mgangaramani@zhongshischool.org", "bbirkenstock@zhongshischool.org",
+    "lrodriguez@zhongshischool.org", "bbirkenstock@zhongshischool.org",
     "eduarte@zhongshischool.org",      // Eri Duarte — PE (Athletics Director)
     "kyang@zhongshischool.org",        // Kimberly Yang — Choir / Orchestra
     // Upper School
