@@ -815,7 +815,7 @@ function viewAwards(main) {
         <label><span>Category</span><select id="awCat"><option value="">Choose…</option>${cats.map((c) => `<option ${c === F.cat ? "selected" : ""}>${esc(c)}</option>`).join("")}</select></label>
         <label style="margin-top:8px"><span>Award <span class="muted">(labelled Fall, Spring or All year)</span></span><select id="awName" ${F.cat ? "" : "disabled"}>${awardOptions(F.cat, F.id)}</select></label>
         <div id="awCriteria" class="small" style="margin-top:6px"></div>
-        <label style="margin-top:8px" id="awTitleWrap" hidden><span>Award title (your own words, e.g. Good Samaritan)</span><input id="awTitle" maxlength="120" value="${esc(F.title || "")}"></label>
+        <label style="margin-top:8px" id="awTitleWrap" hidden><span>Award title for your subject, in your own words (e.g. ICT: Coding Champion)</span><input id="awTitle" maxlength="120" value="${esc(F.title || "")}"></label>
         <label style="margin-top:8px" id="awMonthWrap" hidden><span>Month</span><select id="awMonth">${MONTHS.map((m) => `<option ${m === (F.month || MONTHS[new Date().getMonth()]) ? "selected" : ""}>${m}</option>`).join("")}</select></label>
         <label style="margin-top:8px"><span>Certificate type</span><select id="awType">${P().certificateTypes.map((t) => `<option ${t === F.type ? "selected" : ""}>${esc(t)}</option>`).join("")}</select></label>
         <label style="margin-top:8px"><span id="awPointsLabel">Service points (optional). A number like 16, or Gold / Silver / Bronze. Leave blank for a certificate.</span><input id="awPoints" maxlength="20" value="${esc(F.points || "")}"></label>
@@ -881,7 +881,7 @@ function viewAwards(main) {
     if (dupes.length && !confirm(`${dupes.length} of these students already have "${awardName}" this semester. Add it again?`)) return;
     if (c.f.CustomTitle) {
       const mine = S.awards.filter((a) => a.by === S.me && a.f.Category === c.f.Category && !S.catalogue.some((x) => x.f.Title === a.f.AwardName && !x.f.CustomTitle));
-      if (mine.length + ids.length > 1 && !confirm(`The criteria say each teacher gives only ONE Teacher Award. You have already given ${mine.length}. Save anyway?`)) return;
+      if (mine.length + ids.length > 1 && !confirm(`Each teacher gives only ONE Teacher Award per semester, for one subject. You have already given ${mine.length} this semester. Save anyway?`)) return;
     }
     $("#awSave").disabled = true; $("#awSave").textContent = "Saving…";
     const url = itemsUrl(L.awards), points = $("#awPoints").value.trim(), date = $("#awDate").value;
