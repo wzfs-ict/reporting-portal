@@ -24,6 +24,7 @@
     }
   }
   * { box-sizing: border-box; }
+  [hidden] { display: none !important; }   /* labels are display:block, which would otherwise override the hidden attribute */
   body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 var(--font); }
   a { color: var(--accent); }
   header.top { background: var(--brand); color: #fff; }
@@ -124,6 +125,12 @@
   .stu .count { position: absolute; top: 8px; right: 8px; }
   .stu .tick { position: absolute; bottom: 8px; right: 10px; font-weight: 700; color: var(--accent); }
   .award-panel { position: sticky; top: 8px; }
+  /* Student photos */
+  .ph { display: inline-flex; align-items: center; justify-content: center; flex: none; border-radius: 6px; object-fit: cover; background: var(--surface-2); color: var(--muted); font-weight: 600; }
+  .who-cell { display: flex; gap: 8px; align-items: center; }
+  .stu-photo { margin-bottom: 6px; }
+  .ptc-name { display: flex; align-items: center; gap: 12px; }
+  .ptc-photo { width: 64px; height: 80px; object-fit: cover; border-radius: 6px; }
   .two-col { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr) 340px; align-items: start; }
   @media (max-width: 900px) { .two-col { grid-template-columns: 1fr; } .award-panel { position: static; } }
 

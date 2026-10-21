@@ -153,7 +153,7 @@ async function loadAll() {
   S.catalogueAll = catalogue.sort((a, b) => (a.f.SortOrder ?? 999) - (b.f.SortOrder ?? 999));
   // Teachers see active awards for this semester (Season blank or "Both" = all year).
   S.catalogue = teacherCatalogue();
-  await Promise.all([loadMarks(), loadComments(), loadAwards()]);
+  await Promise.all([loadMarks(), loadComments(), loadAwards(), loadPhotos()]);
 }
 async function loadMarks(grade) {
   const grades = grade ? [grade] : P().grades;
@@ -163,6 +163,22 @@ async function loadMarks(grade) {
 // ClassGrade is the grade of the class they sit in, e.g. a G11 bobae in a G10 class. Blank = same as the list.
 const allMarks = () => Object.values(S.marks).flat();
 const classGradeOf = (r) => r.f.ClassGrade || r.list;
+// Student photos: one Graph call lists the library with ready-made thumbnail links (no file downloads).
+async function loadPhotos() {
+  S.photos = {};
+  const l = S.lists[L.photos]; if (!l) return;
+  try {
+    const files = await graphAll(`/sites/${S.siteId}/lists/${l.id}/drive/root/children?$select=name,id&$expand=thumbnails($select=medium)&$top=999`);
+    for (const f of files) { const t = f.thumbnails && f.thumbnails[0] && f.thumbnails[0].medium; if (t) S.photos[f.name.replace(/\.[^.]+$/, "")] = t.url; }
+  } catch (_) { /* photos are optional; the app works without them */ }
+}
+// <img> for a bobae's photo, or an initial in a grey tile when there is none.
+function photo(id, size = 36) {
+  const st = studentById(id)?.f, url = S.photos && S.photos[id];
+  const h = Math.round(size * 1.25);
+  return url ? `<img class="ph" src="${esc(url)}" width="${size}" height="${h}" loading="lazy" alt="">`
+    : `<span class="ph ph-none" style="width:${size}px;height:${h}px;font-size:${Math.round(size / 2.4)}px">${esc(((st && (st.CalledName || st.FullName)) || "?").slice(0, 1))}</span>`;
+}
 async function loadComments() { S.comments = (await readList(L.comments)).filter((x) => inPeriod(x.f)); }
 async function loadAwards() { S.awards = (await readList(L.awards)).filter((x) => inTerm(x.f)); }
 const rosterFor = (g) => S.students.filter((s) => s.f.Grade === g && s.f.Status !== "Withdrawn");
@@ -457,7 +473,7 @@ function viewEntry(main) {
       ${rows.map((r, i) => `
         <tr data-id="${r.id}">
           <td class="muted">${i + 1}</td>
-          <td><b>${esc(r.f.CalledName || r.f.FullName)}</b>${r.list !== grade ? ` <span class="badge info" title="Belongs to ${esc(r.list)}; this mark goes on their ${esc(r.list)} report card">${esc(r.list)}</span>` : ""}<div class="small muted">${esc(r.f.FullName)} · ${esc(r.f.StudentID)}</div></td>
+          <td><div class="who-cell">${photo(r.f.StudentID, 32)}<div><b>${esc(r.f.CalledName || r.f.FullName)}</b>${r.list !== grade ? ` <span class="badge info" title="Belongs to ${esc(r.list)}; this mark goes on their ${esc(r.list)} report card">${esc(r.list)}</span>` : ""}<div class="small muted">${esc(r.f.FullName)} · ${esc(r.f.StudentID)}</div></div></div></td>
           <td class="num"><input class="score" inputmode="decimal" autocomplete="off" value="${blank(r.f.Score) ? "" : esc(r.f.Score)}" ${rowEditable(r) ? "" : "disabled"} aria-label="Score for ${esc(r.f.FullName)}"></td>
           <td><select class="beh" ${rowEditable(r) ? "" : "disabled"} aria-label="Behaviour for ${esc(r.f.FullName)}"><option value=""></option>${scale.map((b) => `<option value="${b.value}" ${Number(r.f.Behaviour) === b.value ? "selected" : ""}>${b.value} – ${esc(b.label)}</option>`).join("")}</select></td>
           <td><textarea class="remark" maxlength="${P().remarkMaxLength}" ${rowEditable(r) ? "" : "disabled"} aria-label="Remark for ${esc(r.f.FullName)}">${esc(r.f.Remark || "")}</textarea></td>
@@ -602,7 +618,7 @@ function viewAdvisor(main) {
     <div class="table-wrap"><table>
       <thead><tr><th style="width:220px">Student</th><th>Comment</th><th></th></tr></thead>
       <tbody>${roster.map((s) => { const c = commentFor(s.f.Title); return `
-        <tr data-sid="${esc(s.f.Title)}"><td><b>${esc(s.f.CalledName || s.f.FullName)}</b><div class="small muted">${esc(s.f.FullName)}</div></td>
+        <tr data-sid="${esc(s.f.Title)}"><td><div class="who-cell">${photo(s.f.Title, 40)}<div><b>${esc(s.f.CalledName || s.f.FullName)}</b><div class="small muted">${esc(s.f.FullName)}</div></div></div></td>
         <td><textarea class="cmt" rows="3" maxlength="1200" ${canComment ? "" : "disabled"}>${esc(c?.f.Comment || "")}</textarea></td>
         <td class="rowstate"></td></tr>`; }).join("")}</tbody></table></div>`;
   $("#advGrade").onchange = (e) => { S.advGrade = e.target.value; render(); };
@@ -662,7 +678,7 @@ function ptcPage(g, d, i, n) {
       <span>WZFS · ${esc(g)} – ${esc(advisorName(g))} · Parent-Teacher Conference · ${esc(P().period)} ${esc(P().semester)} ${esc(P().academicYear.slice(0, 4))}</span>
       <span>${d.avg === null ? "" : `Avg ${d.avg.toFixed(1)}%`}</span>
     </header>
-    <div class="ptc-name">${esc(name)} <small>${esc(d.st.FullName)} · ${esc(d.st.Title)}</small></div>
+    <div class="ptc-name">${S.photos && S.photos[d.st.Title] ? `<img class="ptc-photo" src="${esc(S.photos[d.st.Title])}" alt="">` : ""}<span>${esc(name)} <small>${esc(d.st.FullName)} · ${esc(d.st.Title)}</small></span></div>
     ${d.note ? `<div class="ptc-note">${esc(d.note)}</div>` : ""}
     <div class="ptc-body">
       <div class="ptc-main">
@@ -784,6 +800,7 @@ function viewAwards(main) {
           ${roster.map((s) => { const n = countFor(s.f.Title); const on = S.awSel.has(s.f.Title); return `
             <button class="stu" data-sid="${esc(s.f.Title)}" aria-pressed="${on}">
               ${n ? `<span class="badge info count" title="Awards this semester">${n}</span>` : ""}
+              <div class="stu-photo">${photo(s.f.Title, 56)}</div>
               <div class="called">${esc(s.f.CalledName || s.f.FullName)}</div>
               <div class="full">${esc(s.f.FullName)}</div>
               <div class="id">${esc(s.f.Title)}</div>
@@ -1035,6 +1052,8 @@ function listSpecs() {
     { name: L.subjects, kind: "read", cols: [T("Grade"), CH("SubjectType", ["I", "II"]), T("Teacher"), B("PrintsOnCard"), N("SortOrder")] },
     { name: L.catalogue, kind: "read", cols: [T("Category"), T("CertificateType"), CH("Season", ["Both", "Fall", "Spring"]), T("Criteria", true), B("AskMonth"), B("CustomTitle"), T("GivenBy"), B("Active"), N("SortOrder")] },
     { name: L.settings, kind: "read", cols: [T("Json", true)] },
+    // Document library of small ID photos, <StudentID>.jpg. Staff read; bobaes never have access.
+    { name: L.photos, kind: "read", library: true, cols: [] },
     { name: L.awards, kind: "entry", cols: [T("StudentID"), T("FullName"), T("CalledName"), T("Grade"), T("Category"), T("AwardName"), T("CertificateType"), T("Points"), T("Semester"), T("AcademicYear"), D("AwardDate"), T("AwardedBy"), B("Printed")] },
     { name: L.comments, kind: "entry", cols: [T("StudentID"), T("Grade"), T("Semester"), T("AcademicYear"), T("Period"), T("Comment", true)] },
   ];
@@ -1090,7 +1109,8 @@ function viewSetup(main) {
       <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(280px,1fr))">
         <label><span>Roster: <code>List_Students_Fall2026.xlsx</code> (${S.students.length} now)</span><input type="file" id="fStudents" accept=".xlsx,.xls,.csv"></label>
         <label><span>Subjects: <code>WZFS_Fall2026_UpperSchool_Subjects.xlsx</code> (${S.subjects.length} now)</span><input type="file" id="fSubjects" accept=".xlsx,.xls,.csv"></label>
-        <label><span>Award catalogue: <code>WZFS_Fall2026_Awards_Catalogue.xlsx</code> (${S.catalogue.length} now)</span><input type="file" id="fCatalogue" accept=".xlsx,.xls,.csv"></label>
+        <label><span>Award catalogue: <code>WZFS_Fall2026_Awards_Catalogue_AllYear.xlsx</code> (${S.catalogue.length} now)</span><input type="file" id="fCatalogue" accept=".xlsx,.xls,.csv"></label>
+        <label><span>Student photos: select all the files in <code>StudentPhotos_Fall2026\\ByStudentID</code> (${Object.keys(S.photos || {}).length} now). Each file is named by Student ID; a new upload replaces the old photo.</span><input type="file" id="fPhotos" accept=".jpg,.jpeg,.png" multiple ${S.lists[L.photos] ? "" : "disabled"}></label>
       </div>
       <pre id="importLog" class="small muted" style="white-space:pre-wrap"></pre>
     </div>
@@ -1162,11 +1182,11 @@ function viewSetup(main) {
     for (const s of missing) {
       log.textContent += `Creating ${s.name}… `;
       try {
-        await graph("POST", `/sites/${S.siteId}/lists`, { displayName: s.name, list: { template: "genericList" }, columns: s.cols }, SETUP_SCOPES);
+        await graph("POST", `/sites/${S.siteId}/lists`, { displayName: s.name, list: { template: s.library ? "documentLibrary" : "genericList" }, ...(s.cols.length ? { columns: s.cols } : {}) }, SETUP_SCOPES);
         log.textContent += "done\n";
       } catch (e) { log.textContent += "FAILED: " + e.message + "\n"; }
     }
-    for (const s of specs.filter((x) => S.lists[x.name])) {
+    for (const s of specs.filter((x) => S.lists[x.name] && !x.library)) {
       try {
         const cols = await graph("GET", `/sites/${S.siteId}/lists/${S.lists[s.name].id}/columns?$select=name`, null, SETUP_SCOPES);
         const have = new Set(cols.value.map((c) => c.name));
@@ -1184,6 +1204,24 @@ function viewSetup(main) {
     try { log.textContent = `Reading ${f.name}…\n`; const wb = await readSheet(f); log.textContent += await fn(wb) + "\n"; await loadAll(); setTimeout(render, 1500); }
     catch (err) { log.textContent += "FAILED: " + err.message + "\n"; }
   }; };
+  $("#fPhotos").onchange = async (e) => {
+    const files = [...e.target.files]; if (!files.length) return; const log = $("#importLog");
+    const known = new Set(S.students.map((s) => s.f.Title));
+    const ok = files.filter((f) => known.has(f.name.replace(/\.[^.]+$/, ""))), skipped = files.filter((f) => !ok.includes(f));
+    log.textContent = `Uploading ${ok.length} photos…${skipped.length ? ` (skipping ${skipped.length} not named after a Student ID: ${skipped.slice(0, 5).map((f) => f.name).join(", ")}${skipped.length > 5 ? "…" : ""})` : ""}\n`;
+    try {
+      const drive = await graph("GET", `/sites/${S.siteId}/lists/${S.lists[L.photos].id}/drive?$select=id`);
+      let done = 0, failed = 0;
+      const one = async (f) => {
+        const r = await fetch(`${GRAPH}/drives/${drive.id}/root:/${encodeURIComponent(f.name.replace(/\.jpeg$/i, ".jpg"))}:/content`, { method: "PUT", headers: { Authorization: "Bearer " + await token(), "Content-Type": f.type || "image/jpeg" }, body: f });
+        if (r.ok) done++; else failed++;
+        if ((done + failed) % 20 === 0) log.textContent += `  …${done + failed} of ${ok.length}\n`;
+      };
+      for (let i = 0; i < ok.length; i += 4) await Promise.all(ok.slice(i, i + 4).map(one));   // four at a time
+      await loadPhotos();
+      log.textContent += `Photos: ${done} uploaded, ${failed} failed. ${Object.keys(S.photos).length} bobaes now have a photo.\n`;
+    } catch (err) { log.textContent += "FAILED: " + err.message + "\n"; }
+  };
   imp("#fStudents", async (wb) => {
     const recs = rowsOf(wb, /student/i).map((r) => ({
       Title: col(r, "Student_ID", "StudentID", "ID"), FullName: col(r, "Full_Name", "Name"), CalledName: col(r, "Called_Name", "Nickname"),

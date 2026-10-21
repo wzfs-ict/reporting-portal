@@ -26,6 +26,7 @@ window.APP_CONFIG = {
     awards: "Awards",
     comments: "Advisor Comments",
     settings: "Reporting Settings",
+    photos: "Student Photos",          // document library: <StudentID>.jpg, staff read only
     marksPrefix: "Marks ",
   },
   // SharePoint group that gets Contribute on the entry lists (Setup → Permissions)
