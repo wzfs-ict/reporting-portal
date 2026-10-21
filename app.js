@@ -371,7 +371,8 @@ function viewNewClass(main) {
     <div class="card"><div class="grid">
       <label><span>Grade</span><select id="ncGrade"><option value="">Choose…</option>${grades.map((g) => `<option>${esc(g)}</option>`).join("")}</select></label>
       <label><span>Subject</span><select id="ncSubject" disabled><option value="">Choose a grade first</option></select></label>
-      <label class="wide"><span>Class level or set (optional). Use only when the grade is split into groups, e.g. <i>Chinese Intermediate A</i>. Leave blank if you teach the whole grade.</span><input id="ncLevel" maxlength="60"></label>
+      <label class="wide" id="ncLevelPick" hidden><span>Class level (this subject is taught in groups; pick yours)</span><select id="ncLevelSel"></select></label>
+      <label class="wide" id="ncLevelWrap"><span>Class level or set (optional). Use only when the grade is split into groups, e.g. <i>Chinese Intermediate A</i>. Leave blank if you teach the whole grade.</span><input id="ncLevel" maxlength="60"></label>
     </div></div>
     <div id="ncRoster"></div>
     <div class="sticky-actions">
@@ -381,6 +382,7 @@ function viewNewClass(main) {
     </div>`;
   const gSel = $("#ncGrade"), sSel = $("#ncSubject");
   const guests = new Set();
+  let updCreate = () => {};
   const refresh = () => {
     const g = gSel.value;
     const roster = g ? rosterFor(g) : [];
@@ -396,7 +398,10 @@ function viewNewClass(main) {
           : notice("warn", "No students found for this grade in the roster.")}
       </div>
       <details class="card" ${guests.size ? "open" : ""}><summary>Add bobaes from other grades${guests.size ? ` (${guests.size} added)` : ""}</summary><div id="ncOther" style="margin-top:10px"></div></details>` : "";
-    const upd = () => { const n = $$(".ncStu:checked").length + guests.size; $("#ncCount").textContent = g ? `${n} students selected${guests.size ? `, ${guests.size} from other grades` : ""}` : ""; $("#ncCreate").disabled = !(g && sSel.value && n); };
+    const upd = () => { const n = $$(".ncStu:checked").length + guests.size; $("#ncCount").textContent = g ? `${n} students selected${guests.size ? `, ${guests.size} from other grades` : ""}` : "";
+      const levelOk = $("#ncLevelPick").hidden || ($("#ncLevelSel").value && ($("#ncLevelSel").value !== "__other" || $("#ncLevel").value.trim()));
+      $("#ncCreate").disabled = !(g && sSel.value && n && levelOk); };
+    updCreate = upd;
     if (g) otherGradePicker($("#ncOther"), g, new Set(roster.map((s) => s.f.Title)), guests, upd);
     $$(".ncStu").forEach((c) => (c.onchange = upd));
     const a = $("#ncAll"), z = $("#ncNone");
@@ -408,9 +413,30 @@ function viewNewClass(main) {
     const subs = S.subjects.filter((s) => s.f.Grade === gSel.value && s.f.PrintsOnCard !== false);
     sSel.disabled = !gSel.value;
     sSel.innerHTML = `<option value="">${subs.length ? "Choose…" : "No subjects set up for this grade"}</option>` + subs.map((s) => `<option value="${esc(s.f.Title)}">${esc(s.f.Title)}</option>`).join("");
+    showLevels();
     refresh();
   };
-  sSel.onchange = refresh;
+  // Subjects taught in groups (config classLevels): offer the official level names, plus "Other…".
+  const lvSel = $("#ncLevelSel"), lvIn = $("#ncLevel");
+  const showLevels = () => {
+    const groups = (C.classLevels?.[sSel.value] || []).filter((x) => x.grades.includes(gSel.value));
+    $("#ncLevelPick").hidden = !groups.length;
+    if (groups.length) {
+      lvSel.innerHTML = `<option value="">Choose…</option>` + groups.map((x) => `<optgroup label="${esc(x.label)}">${x.levels.map((l) => `<option>${esc(l)}</option>`).join("")}</optgroup>`).join("")
+        + `<option value="__other">Other… (type it)</option><option value="__none">Whole grade, no level</option>`;
+      lvIn.value = "";
+    }
+    $("#ncLevelWrap").hidden = groups.length > 0;
+  };
+  lvSel.onchange = () => {
+    const v = lvSel.value;
+    $("#ncLevelWrap").hidden = v !== "__other";
+    lvIn.value = v.startsWith("__") ? "" : v;
+    if (v === "__other") lvIn.focus();
+    updCreate();
+  };
+  lvIn.oninput = () => updCreate();
+  sSel.onchange = () => { showLevels(); refresh(); };
   $("#ncCancel").onclick = () => go("classes");
   $("#ncCreate").onclick = async () => {
     const g = gSel.value, subject = sSel.value, level = $("#ncLevel").value.trim();

@@ -125,6 +125,17 @@ window.APP_CONFIG = {
     "ZSA":  { name: "Mrs. May Cho",         co: "",                 email: "mcho@zhongshischool.org" },
   },
 
+  // Class levels: when a subject is split into groups, teachers pick the group from a drop-down
+  // (plus "Other…") on "Add a class". The level name is what prints on the report card.
+  // From the Chinese department, Oct 2026. Primary still to come (free text until then).
+  classLevels: {
+    Chinese: [
+      { grades: ["G11", "G12"], label: "G11–G12", levels: ["Chinese (HSK4)", "Chinese (HSK5)", "Chinese (HSK6)", "AS Chinese", "A2 Chinese"] },
+      { grades: ["G9-1", "G9-2", "G10"], label: "G9–G10", levels: ["Elementary Chinese I", "Elementary Chinese II", "Intermediate Chinese", "Advanced Chinese", "IG Chinese I", "IG Chinese II"] },
+      { grades: ["G6", "G7", "G8", "G9-2", "ZSA"], label: "G6–G8 and ZSA", levels: ["Chinese Elementary Class A-1", "Chinese Elementary Class A-2", "Chinese Elementary Class B", "Chinese Intermediate Class", "Chinese Advanced Class A-1", "Chinese Advanced Class A-2", "Chinese Advanced Class B"] },
+    ],
+  },
+
   // ── Scales ───────────────────────────────────────────────
   behaviourScale: [
     { value: 1, label: "Excellent" },
