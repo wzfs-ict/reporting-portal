@@ -817,8 +817,8 @@ function viewCerts(main) {
       <h2 style="margin-top:0">Certificates to print · ${esc(P().semester)} ${esc(P().academicYear)}${F.grade ? ` · ${esc(F.grade)}` : ""}${F.cat ? ` · ${esc(F.cat)}` : ""}</h2>
       ${byGrade.map(([g, l]) => `<div class="cert-grade">
         <h3>${esc(g)} · ${esc(advisorName(g))} <span class="small muted">${l.length} certificate${l.length > 1 ? "s" : ""}</span></h3>
-        <div class="table-wrap"><table><thead><tr><th style="width:40px" class="center">✓</th><th>Name on certificate</th><th>Award</th><th>Certificate</th><th>Given by</th><th>Date</th></tr></thead><tbody>
-          ${l.map((c) => `<tr data-aid="${esc(c.a.id)}"><td class="center"><input type="checkbox" class="cPrinted" ${c.a.f.Printed ? "checked" : ""}></td>
+        <div class="table-wrap"><table><thead><tr><th style="width:40px;text-align:center">✓</th><th>Name on certificate</th><th>Award</th><th>Certificate</th><th>Given by</th><th>Date</th></tr></thead><tbody>
+          ${l.map((c) => `<tr data-aid="${esc(c.a.id)}"><td style="text-align:center"><input type="checkbox" class="cPrinted" ${c.a.f.Printed ? "checked" : ""}></td>
             <td><b>${esc(c.name)}</b>${c.called && !c.name.includes(c.called) ? ` <span class="small muted">(${esc(c.called)})</span>` : ""}</td>
             <td>${esc(c.a.f.AwardName)}</td><td class="small">${esc(c.a.f.CertificateType || "")}</td><td class="small">${esc(c.a.byName || c.a.f.AwardedBy || "")}</td><td class="small">${esc((c.a.f.AwardDate || "").slice(0, 10))}</td></tr>`).join("")}
         </tbody></table></div></div>`).join("") || `<p class="muted">${certs.length ? "Nothing here with these filters." : "No certificates have been given this semester yet."}</p>`}
