@@ -258,6 +258,7 @@ function viewAsMenu() {
     <optgroup label="Admin team (report cards)">${(p.reportTeam || []).map((e) => opt(e)).join("")}</optgroup>
     <optgroup label="Division heads">${Object.entries(p.divisionHeads || {}).map(([e, gs]) => opt(e, `${nameOf(e)} (${gs[0]}–${gs[gs.length - 1]})`)).join("")}</optgroup>
     <optgroup label="Leadership">${p.leadership.map((e) => opt(e)).join("")}</optgroup>
+    ${(p.librarians || []).length ? `<optgroup label="Librarian (certificates)">${p.librarians.map((e) => opt(e)).join("")}</optgroup>` : ""}
     <optgroup label="Class advisors">${advisorOpts.join("")}</optgroup>
     <optgroup label="Subject teachers">${teachers.map((e) => opt(e)).join("")}</optgroup>
     <optgroup label="Parents and bobaes">${opt("parent", "A parent (what they receive)")}${opt("student", "A bobae (My goals)")}</optgroup>
