@@ -170,6 +170,10 @@
     @page { size: A4 portrait; margin: 0; }
     body { background: #fff; }
     header.top, .site-footer, .no-print { display: none !important; }
+    .cert-list { padding: 12mm; }
+    .cert-list, .cert-list * { color: #000 !important; background: #fff !important; border-color: #999 !important; }
+    .cert-list .cert-grade + .cert-grade { break-before: page; }
+    .cert-list table { font-size: 10.5pt; }
     main { max-width: none; padding: 0; }
     .ptc-wrap { display: block; }
     .ptc-page { box-shadow: none; width: 210mm; height: 297mm; min-height: 0; overflow: hidden; break-after: page; }

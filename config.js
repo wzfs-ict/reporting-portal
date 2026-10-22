@@ -66,7 +66,18 @@ window.APP_CONFIG = {
   // go-ahead per grade at Final. The Admin team generates report cards only after the go-ahead.
   // Add next year's principal here too when they take over.
   principals: ["asumeg-ang@zhongshischool.org"],
-  // Division heads: read-only Advisor view and PTC sheets for their own grades only.
+  // Librarian: sees the Certificates tab (what to print, by class) and marks certificates as printed.
+  librarians: ["lbirkenstock@zhongshischool.org"],   // Luna Birkenstock
+  // Primary (G1–G5): award categories that don't apply there, and the subjects a PTC sheet shows.
+  primary: {
+    grades: ["G1", "G2", "G3", "G4", "G5"],
+    hiddenAwardCategories: ["Dorm", "DCHSS Award", "English Ambassador", "IGCSE & AS", "Pi Day", "Podcast", "World Scholar's Cup"],
+    ptcSubjects: ["Chinese", "English", "Maths", "Science", "Accelerate English", "Accelerated English"],
+  },
+  // At Midterm only these award categories can be given; everything else waits for the Final.
+  midtermAwardCategories: ["Top Students", "Outstanding Student"],
+  // Division heads: review their grades (marks, comments, awards) and give the report card
+  // go-ahead for them, like the Principal does for the rest. E.g. the Vice Principal (Primary) for G1–G5.
   divisionHeads: {
     "xtobias@zhongshischool.org": ["G1", "G2", "G3", "G4", "G5"],   // Xochitl Tobias, Head of Primary
   },
@@ -81,7 +92,7 @@ window.APP_CONFIG = {
   names: {
     "glenj@zhongshischool.org": "Glen Joshua", "gjoshua@zhongshischool.org": "Glen Joshua (2nd account)",
     "rpark@zhongshischool.org": "Ryan Park", "pgao@zhongshischool.org": "Peter Gao", "jbkim@zhongshischool.org": "Keating Kim",
-    "mkkim@zhongshischool.org": "Andy Kim", "xtobias@zhongshischool.org": "Xochitl Tobias", "asumeg-ang@zhongshischool.org": "Arsenio Sumeg-ang",
+    "mkkim@zhongshischool.org": "Andy Kim", "xtobias@zhongshischool.org": "Xochitl Tobias", "lbirkenstock@zhongshischool.org": "Luna Birkenstock", "asumeg-ang@zhongshischool.org": "Arsenio Sumeg-ang",
     "dlee@zhongshischool.org": "Daniel Lee", "mlee@zhongshischool.org": "Moody Lee", "rrussell@zhongshischool.org": "Roger Russell",
     "jpaa@zhongshischool.org": "Jonathan Pa-a", "agong@zhongshischool.org": "Alan Gong", "mparker@zhongshischool.org": "Mae Parker",
     "gparker@zhongshischool.org": "Gregg Parker", "randy@zhongshischool.org": "Randy Wang", "gliu@zhongshischool.org": "Grace Liu",
