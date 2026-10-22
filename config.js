@@ -62,6 +62,10 @@ window.APP_CONFIG = {
     "mkkim@zhongshischool.org",        // Andy Kim, VP Communications
     "rrussell@zhongshischool.org",     // Roger Russell
   ],
+  // Principal: reviews every grade (marks, behaviour, comments, awards), can correct them, and gives the
+  // go-ahead per grade at Final. The Admin team generates report cards only after the go-ahead.
+  // Add next year's principal here too when they take over.
+  principals: ["asumeg-ang@zhongshischool.org"],
   // Division heads: read-only Advisor view and PTC sheets for their own grades only.
   divisionHeads: {
     "xtobias@zhongshischool.org": ["G1", "G2", "G3", "G4", "G5"],   // Xochitl Tobias, Head of Primary

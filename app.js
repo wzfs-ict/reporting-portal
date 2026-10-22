@@ -147,6 +147,8 @@ async function loadAll() {
   const settings = await readList(L.settings);
   S.settingsItem = settings.find((x) => x.f.Title === "config") || null;
   try { S.settings = S.settingsItem ? JSON.parse(S.settingsItem.f.Json || "{}") : {}; } catch (_) { S.settings = {}; }
+  S.approvalItem = settings.find((x) => x.f.Title === "approvals") || null;
+  try { S.approvals = S.approvalItem ? JSON.parse(S.approvalItem.f.Json || "{}") : {}; } catch (_) { S.approvals = {}; }
   const [students, subjects, catalogue] = await Promise.all([readList(L.students), readList(L.subjects), readList(L.catalogue)]);
   S.students = students.sort((a, b) => (a.f.FullName || "").localeCompare(b.f.FullName || ""));
   S.subjects = subjects.sort((a, b) => (a.f.SortOrder ?? 999) - (b.f.SortOrder ?? 999) || (a.f.Title || "").localeCompare(b.f.Title || ""));
@@ -186,11 +188,14 @@ const studentById = (id) => S.students.find((s) => s.f.Title === id);
 
 // ── Roles (layout only — real access comes from SharePoint) ──
 const isAdmin = () => P().admins.map(lc).includes(S.me);
-const isLeader = () => isAdmin() || P().leadership.map(lc).includes(S.me);
+// Principal: reviews and corrects every grade, and gives the go-ahead for report cards (admins can too, as backup).
+const isPrincipal = () => (P().principals || []).map(lc).includes(S.me);
+const canApprove = () => isPrincipal() || isAdmin();
+const isLeader = () => isAdmin() || isPrincipal() || P().leadership.map(lc).includes(S.me);
 const emailsOf = (s) => String(s || "").split(/[\s,;]+/).map(lc).filter((e) => e.includes("@"));
 const advisorEmails = (g) => emailsOf(P().advisors[g] && P().advisors[g].email);   // advisor + co-advisor
 const advisorGrades = () => P().grades.filter((g) => advisorEmails(g).includes(S.me));
-const canAdvise = (g) => isAdmin() || advisorGrades().includes(g);
+const canAdvise = (g) => isAdmin() || isPrincipal() || advisorGrades().includes(g);
 // Admin team: the only people who generate report cards (Export).
 const isReportTeam = () => isAdmin() || (P().reportTeam || []).map(lc).includes(S.me);
 // Division heads (e.g. Head of Primary) see their own grades read-only.
@@ -209,6 +214,7 @@ function tabsFor() {
   const teaches = isAdmin() || (P().staff || []).map(lc).includes(S.me) || advisorGrades().length > 0;
   if (isReportTeam() && !teaches) return [["export", "Report cards"], ...(viewGrades().length ? [["advisor", "Advisor view"]] : []), ["help", "Help"]];
   const t = [["classes", "My classes"], ["awards", "Awards"]];
+  if (canApprove()) t.unshift(["review", "Principal review"]);
   if (viewGrades().length) t.push(["advisor", headGrades().length && !advisorGrades().length && !isLeader() ? "Division view" : "Advisor view"]);
   if (isReportTeam()) t.push(["export", "Report cards"]);
   if (isAdmin()) t.push(["setup", "Setup"]);
@@ -255,7 +261,7 @@ function render() {
   const main = $("#main");
   if (!account) return signInScreen(main);
   if (S.loadErr) return errorScreen(main);
-  const views = { classes: viewClasses, newclass: viewNewClass, entry: viewEntry, advisor: viewAdvisor, ptc: viewPtc, awards: viewAwards, export: viewExport, setup: viewSetup, pde: viewPde, help: viewHelp, parent: viewParent, mygoals: viewMyGoals };
+  const views = { review: viewReview, classes: viewClasses, newclass: viewNewClass, entry: viewEntry, advisor: viewAdvisor, ptc: viewPtc, awards: viewAwards, export: viewExport, setup: viewSetup, pde: viewPde, help: viewHelp, parent: viewParent, mygoals: viewMyGoals };
   if (!tabsFor().some(([k]) => k === ({ newclass: "classes", entry: S.back, ptc: "advisor" }[S.tab] || S.tab))) S.tab = tabsFor()[0][0];
   (views[S.tab] || viewClasses)(main);
   if (S.viewAs) main.insertAdjacentHTML("afterbegin", notice("warn", `<b>Preview:</b> you're seeing the app as <b>${esc(S.meName)}</b>. Read-only: nothing is saved. Their real access is set in SharePoint, so a few things may look slightly different for them. <a href="#" id="endPreview">Back to myself</a>`)
@@ -652,20 +658,118 @@ function viewAdvisor(main) {
   $$("[data-open]").forEach((b) => (b.onclick = () => { const c = classes[+b.dataset.open]; openClass(c.grade, c.subject, c.level, c.by, "advisor"); }));
   for (const tr of $$("tr[data-sid]", main)) {
     const ta = $(".cmt", tr), state = $(".rowstate", tr), sid = tr.dataset.sid;
-    ta.onchange = async () => {
-      state.className = "rowstate"; state.textContent = "Saving…";
-      try {
-        const c = commentFor(sid), text = ta.value.trim();
-        if (c) { await graph("PATCH", `${itemsUrl(L.comments)}/${c.id}/fields`, { Comment: text }); c.f.Comment = text; }
-        else {
-          const st = studentById(sid).f;
-          const it = await graph("POST", itemsUrl(L.comments), { fields: { Title: `${st.FullName} (${g})`, StudentID: sid, Grade: g, ...termP(), Comment: text } });
-          S.comments.push(norm(it));
-        }
-        state.textContent = "Saved ✓";
-      } catch (e) { state.className = "rowstate err"; state.textContent = "Not saved"; flash("error", e.message); }
-    };
+    ta.onchange = () => saveComment(g, sid, ta.value, state);
   }
+}
+// Advisor comment for one bobae: update their row for this period, or create it. Shows progress in `state`.
+async function saveComment(g, sid, value, state) {
+  state.className = "rowstate"; state.textContent = "Saving…";
+  try {
+    const c = S.comments.find((x) => x.f.StudentID === sid && x.f.Grade === g), text = value.trim();
+    if (c) { await graph("PATCH", `${itemsUrl(L.comments)}/${c.id}/fields`, { Comment: text }); c.f.Comment = text; c.modified = new Date().toISOString(); }
+    else {
+      const st = studentById(sid).f;
+      const it = await graph("POST", itemsUrl(L.comments), { fields: { Title: `${st.FullName} (${g})`, StudentID: sid, Grade: g, ...termP(), Comment: text } });
+      S.comments.push(norm(it));
+    }
+    state.textContent = "Saved ✓";
+  } catch (e) { state.className = "rowstate err"; state.textContent = "Not saved"; flash("error", e.message); }
+}
+
+// ── Principal review: every grade at a glance, corrections, and the go-ahead for report cards ──
+// Go-aheads live in the "approvals" item of Reporting Settings, keyed by year|semester|period, then grade.
+const approvalKey = () => `${P().academicYear}|${P().semester}|${P().period}`;
+const approvalFor = (g) => (S.approvals[approvalKey()] || {})[g] || null;
+// Latest change to anything that prints on this grade's report cards (marks, comments, awards).
+function lastChange(g) {
+  const ids = new Set(rosterFor(g).map((s) => s.f.Title));
+  const items = [...(S.marks[g] || []), ...S.comments.filter((c) => c.f.Grade === g), ...S.awards.filter((a) => ids.has(a.f.StudentID))];
+  return items.reduce((m, x) => (x.modified && x.modified > m ? x.modified : m), "");
+}
+async function setApproval(g, on) {
+  // Re-read first so two people approving different grades don't overwrite each other.
+  const fresh = (await readList(L.settings)).find((x) => x.f.Title === "approvals");
+  let all = {}; try { all = fresh ? JSON.parse(fresh.f.Json || "{}") : {}; } catch (_) { all = {}; }
+  const k = approvalKey(); all[k] = all[k] || {};
+  if (on) all[k][g] = { by: S.me, byName: S.meName, at: new Date().toISOString() }; else delete all[k][g];
+  const Json = JSON.stringify(all);
+  if (fresh) await graph("PATCH", `${itemsUrl(L.settings)}/${fresh.id}/fields`, { Json });
+  else await graph("POST", itemsUrl(L.settings), { fields: { Title: "approvals", Json } });
+  S.approvals = all;
+}
+function gradeSummary(g) {
+  const c = gradeChecks(g), n = rosterFor(g).length, ids = new Set(rosterFor(g).map((s) => s.f.Title));
+  const aw = S.awards.filter((a) => ids.has(a.f.StudentID));
+  const ready = c.classes > 0 && !c.open.length && !c.missing && c.comments === n && !c.dupes.length;
+  const ok = approvalFor(g);
+  return { g, c, n, aw, ready, ok, changed: ok && lastChange(g) > ok.at, concerns: (S.marks[g] || []).filter((r) => r.f.Concern).length };
+}
+function approvalBadge(s) {
+  if (!s.ok) return `<span class="badge">Not yet</span>`;
+  return `<span class="badge ok">Go-ahead ✓</span><div class="small muted">${esc(s.ok.byName)}, ${esc(s.ok.at.slice(0, 10))}</div>${s.changed ? `<div><span class="badge warn">Changed since</span></div>` : ""}`;
+}
+function viewReview(main) {
+  const grades = P().grades.filter((g) => rosterFor(g).length);
+  const sums = grades.map(gradeSummary);
+  const g = grades.includes(S.revGrade) ? S.revGrade : "";
+  const scale = (v) => (blank(v) ? "–" : esc(v));
+  main.innerHTML = `
+    <h1>Principal review</h1>
+    <p class="lede"><span class="badge info">${esc(termLabel())}</span> Every grade’s marks, behaviour, comments and awards in one place. Correct anything that needs it, then give the go-ahead so the Admin team can generate the report cards.</p>
+    <div id="flash"></div>
+    ${isMidterm() ? notice("warn", "This is the <b>Midterm</b> period: progress only. Report cards are made at the <b>Final</b>, so the go-ahead opens then.") : ""}
+    <div class="stats">
+      <div class="stat"><div class="k">Grades complete</div><div class="v">${sums.filter((s) => s.ready).length} / ${sums.length}</div></div>
+      <div class="stat"><div class="k">Go-ahead given</div><div class="v">${sums.filter((s) => s.ok).length} / ${sums.length}</div></div>
+      <div class="stat"><div class="k">⚑ Concerns flagged</div><div class="v">${sums.reduce((t, s) => t + s.concerns, 0)}</div></div>
+      <div class="stat"><div class="k">Awards given</div><div class="v">${S.awards.length}</div></div>
+    </div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Grade</th><th class="num">Bobaes</th><th>Subjects</th><th class="num">Blank marks</th><th class="num">Comments</th><th class="num">Awards</th><th class="num">⚑</th><th>Go-ahead</th><th></th></tr></thead>
+      <tbody>${sums.map((s) => `
+        <tr ${s.g === g ? 'style="background:var(--panel-2,rgba(120,140,170,.12))"' : ""}><td><b>${esc(s.g)}</b><div class="small muted">${esc(advisorName(s.g))}</div></td><td class="num">${s.n}</td>
+          <td class="small">${!s.c.classes ? `<span class="badge">None yet</span>` : s.c.open.length ? `<span class="badge warn">${s.c.classes - s.c.open.length} of ${s.c.classes} in</span>` : `<span class="badge ok">All ${s.c.classes} in</span>`}</td>
+          <td class="num">${s.c.missing ? `<span class="badge warn">${s.c.missing}</span>` : "0"}</td>
+          <td class="num">${s.c.comments === s.n ? `<span class="badge ok">${s.c.comments}/${s.n}</span>` : `${s.c.comments}/${s.n}`}</td>
+          <td class="num">${s.aw.length}</td><td class="num">${s.concerns || ""}</td>
+          <td>${approvalBadge(s)}</td>
+          <td style="white-space:nowrap"><button class="btn small" data-rev="${esc(s.g)}">Review</button>
+            ${canApprove() && !isMidterm() ? (s.ok && !s.changed ? `<button class="btn small" data-undo="${esc(s.g)}">Withdraw</button>` : `<button class="btn small ${s.ready ? "primary" : ""}" data-ok="${esc(s.g)}">${s.ok ? "Give again" : "Give go-ahead"}</button>`) : ""}</td></tr>`).join("")}
+      </tbody></table></div>
+    <div id="revDetail"></div>`;
+  if (g) {
+    const rows = S.marks[g] || [];
+    const order = (r) => { const x = S.subjects.find((s) => s.f.Grade === g && s.f.Title === r.f.Subject); return x ? (x.f.SortOrder ?? 999) : 999; };
+    $("#revDetail").innerHTML = `
+      <div class="row" style="align-items:center;margin-top:18px"><h2 style="margin:0">${esc(g)} · ${esc(advisorName(g))}</h2>
+        <button class="btn small" id="revEdit" style="margin-left:auto">Correct marks in the Advisor view →</button></div>
+      <p class="small muted">Score / behaviour for each subject (hover for the teacher’s remark). Comments save when you leave the box.</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th style="width:200px">Bobae</th><th>Marks</th><th style="width:34%">Advisor comment</th><th>Awards</th><th></th></tr></thead>
+        <tbody>${rosterFor(g).map((st) => { const id = st.f.Title;
+          const mine = rows.filter((r) => r.f.StudentID === id).sort((a, b) => order(a) - order(b));
+          const cm = S.comments.find((c) => c.f.StudentID === id && c.f.Grade === g);
+          const aw = S.awards.filter((a) => a.f.StudentID === id);
+          return `<tr data-sid="${esc(id)}"><td><div class="who-cell">${photo(id, 40)}<div><b>${esc(st.f.CalledName || st.f.FullName)}</b><div class="small muted">${esc(st.f.FullName)}</div></div></div></td>
+            <td class="small">${mine.map((r) => `<span class="badge ${blank(r.f.Score) || blank(r.f.Behaviour) ? "warn" : ""}" title="${esc(r.byName)}${r.f.Remark ? " — " + esc(r.f.Remark) : ""}" style="margin:2px">${esc(subjectDisplay(r.f))} ${scale(r.f.Score)}/${scale(r.f.Behaviour)}${r.f.Concern ? " ⚑" : ""}</span>`).join("") || `<span class="muted">No marks yet</span>`}</td>
+            <td><textarea class="cmt" rows="3" maxlength="1200" ${canApprove() ? "" : "disabled"}>${esc(cm?.f.Comment || "")}</textarea></td>
+            <td class="small">${aw.map((a) => esc(a.f.AwardName) + (a.f.Points ? ` (${esc(a.f.Points)})` : "")).join("<br>") || `<span class="muted">–</span>`}</td>
+            <td class="rowstate"></td></tr>`; }).join("")}</tbody></table></div>`;
+    $("#revEdit").onclick = () => { S.advGrade = g; go("advisor"); };
+    for (const tr of $$("#revDetail tr[data-sid]")) { const ta = $(".cmt", tr); ta.onchange = () => saveComment(g, tr.dataset.sid, ta.value, $(".rowstate", tr)); }
+  }
+  $$("[data-rev]").forEach((b) => (b.onclick = () => { S.revGrade = S.revGrade === b.dataset.rev ? "" : b.dataset.rev; render(); if (S.revGrade) $("#revDetail").scrollIntoView({ behavior: "smooth" }); }));
+  $$("[data-ok]").forEach((b) => (b.onclick = async () => {
+    const s = sums.find((x) => x.g === b.dataset.ok);
+    if (!s.ready && !confirm(`${s.g} isn’t complete yet (${s.c.open.length} subjects waiting, ${s.c.missing} blank marks, ${s.c.comments}/${s.n} comments). Give the go-ahead anyway?`)) return;
+    b.disabled = true; b.textContent = "Saving…";
+    try { await setApproval(s.g, true); render(); flash("ok", `Go-ahead given for ${s.g}. The Admin team can now generate its report cards.`); }
+    catch (e) { flash("error", e.message); b.disabled = false; }
+  }));
+  $$("[data-undo]").forEach((b) => (b.onclick = async () => {
+    if (!confirm(`Withdraw the go-ahead for ${b.dataset.undo}?`)) return;
+    try { await setApproval(b.dataset.undo, false); render(); flash("ok", `Go-ahead withdrawn for ${b.dataset.undo}.`); } catch (e) { flash("error", e.message); }
+  }));
 }
 
 // ── PTC sheets (advisor's parent-meeting helper, not an official report) ──
@@ -989,7 +1093,9 @@ function viewExport(main) {
     const aw = S.awards.filter((a) => a.f.Grade === g), certs = aw.filter((a) => !a.f.Points).length, pts = aw.length - certs;
     totals.certs += certs; totals.points += pts;
     const ready = c.classes > 0 && !c.open.length && !c.missing && c.comments === n && !c.dupes.length;
-    return { g, c, n, certs, pts, ready };
+    // At Final, report cards wait for the Principal's go-ahead (Principal review tab).
+    const ok = approvalFor(g), approved = isMidterm() || !!ok;
+    return { g, c, n, certs, pts, ready, ok, approved, changed: ok && lastChange(g) > ok.at };
   });
   const readyCount = rows.filter((r) => r.ready).length;
   const restricted = new Set(teacherCatalogue().filter(advisorOnly).map((c) => lc(c.f.Category + "|" + c.f.Title)));
@@ -1014,14 +1120,15 @@ function viewExport(main) {
     </div>
     <div class="table-wrap"><table>
       <thead><tr><th>Grade</th><th class="num">Bobaes</th><th>Marks</th><th class="num">Advisor comments</th><th>Awards</th><th>Status</th><th></th></tr></thead>
-      <tbody>${rows.map(({ g, c, n, certs, pts, ready }) => `
+      <tbody>${rows.map(({ g, c, n, certs, pts, ready, ok, approved, changed }) => `
         <tr><td><b>${esc(g)}</b><div class="small muted">${esc(advisorName(g))}</div></td><td class="num">${n}</td>
           <td class="small">${!c.classes ? `<span class="badge">No classes yet</span>` : c.open.length ? `<span class="badge warn">${c.classes - c.open.length} of ${c.classes} subjects in</span><div class="muted">Waiting: ${c.open.map((x) => esc(x.subject)).join(", ")}</div>` : `<span class="badge ok">All ${c.classes} subjects in</span>`}
             ${c.missing ? `<div><span class="badge warn">${c.missing} blank marks</span></div>` : ""}${c.dupes.length ? `<div><span class="badge bad">${c.dupes.length} duplicate subject rows</span></div>` : ""}</td>
           <td class="num">${c.comments === n ? `<span class="badge ok">${c.comments} / ${n}</span>` : `${c.comments} / ${n}`}</td>
           <td class="small">${certs} certificates<div class="muted">${pts} service points</div></td>
-          <td>${ready ? `<span class="badge ok">Ready</span>` : `<span class="badge warn">Not complete</span>`}</td>
-          <td><button class="btn ${ready ? "primary" : ""} small" data-gen="${esc(g)}" ${c.rows || c.comments ? "" : "disabled"}>Generate →</button></td></tr>`).join("")}
+          <td>${ready ? `<span class="badge ok">Ready</span>` : `<span class="badge warn">Not complete</span>`}
+            ${isMidterm() ? "" : ok ? `<div><span class="badge ok">Go-ahead ✓</span></div>${changed ? `<div><span class="badge warn">Changed since go-ahead</span></div>` : ""}` : `<div><span class="badge">Waiting for Principal</span></div>`}</td>
+          <td><button class="btn ${ready && approved ? "primary" : ""} small" data-gen="${esc(g)}" ${c.rows || c.comments ? "" : "disabled"}>Generate →</button></td></tr>`).join("")}
       </tbody></table></div>
     ${odd.length ? notice("warn", `${odd.length} advisor-only award${odd.length > 1 ? "s were" : " was"} saved by someone who isn't that grade's advisor: `
       + odd.slice(0, 8).map((a) => `${esc(a.f.CalledName || a.f.FullName)} (${esc(a.f.Grade)}): ${esc(a.f.AwardName)}, by ${esc(a.byName || a.f.AwardedBy)}`).join("; ") + (odd.length > 8 ? "…" : "") + ". Check with the advisor before printing.") : ""}
@@ -1036,7 +1143,7 @@ function viewExport(main) {
       <div class="row">${grades.map((g) => `<button class="btn small" data-g="${esc(g)}">Marks ${esc(g)}</button>`).join("")}</div>
       <p class="row" style="margin-top:8px"><button class="btn small" id="awardsFile">Awards file (all grades)</button><button class="btn small" id="allMarks">All grades in one marks file</button></p>
     </details>
-    <p class="small muted">"Ready" means every subject is submitted, no marks are blank, every bobae has an advisor comment, and no subject is entered twice. You can still generate a grade that isn't ready, for a check copy.</p>`;
+    <p class="small muted">"Ready" means every subject is submitted, no marks are blank, every bobae has an advisor comment, and no subject is entered twice. At Final, print a grade's report cards once the Principal has given the go-ahead (Principal review tab). You can still generate a check copy before that.</p>`;
   $("#reload").onclick = async () => { $("#reload").textContent = "Loading…"; await loadAll(); render(); flash("ok", "Up to date."); };
   $("#attFile").onchange = async (e) => {
     const f = e.target.files[0]; if (!f) return;
@@ -1047,6 +1154,7 @@ function viewExport(main) {
   $$("[data-gen]").forEach((b) => (b.onclick = () => {
     const r = rows.find((x) => x.g === b.dataset.gen);
     if (!r.ready && !confirm(`${r.g} isn't complete yet${r.c.open.length ? ` (waiting for ${r.c.open.length} subject${r.c.open.length > 1 ? "s" : ""})` : ""}. Generate a check copy anyway?`)) return;
+    if (r.ready && !r.approved && !confirm(`The Principal hasn't given the go-ahead for ${r.g} yet. Generate a check copy only (not for printing)?`)) return;
     if (!S.attendance && !confirm("No attendance sheet added. Generate without attendance?")) return;
     openGenerator(r.g);
   }));
@@ -1433,7 +1541,8 @@ async function applyPermissions(specs, staffEmails, out) {
   const visitors = await sp("GET", "web/associatedvisitorgroup?$select=Id").catch(() => null);
   let group = await sp("GET", `web/sitegroups/getbyname('${encodeURIComponent(C.staffGroup)}')?$select=Id`).catch(() => null);
   if (!group) { group = await sp("POST", "web/sitegroups", { __metadata: { type: "SP.Group" }, Title: C.staffGroup, Description: "Teachers who enter marks and awards in WZFS Reporting" }); out(`Created group ${C.staffGroup}.`); }
-  const reportTeam = [...new Set([...(P().reportTeam || []), ...P().admins].map(lc))];
+  // Admin team + Principal: Design on marks, comments and awards (read every grade; the Principal can also correct).
+  const reportTeam = [...new Set([...(P().reportTeam || []), ...P().admins, ...(P().principals || [])].map(lc))];
   const heads = Object.entries(P().divisionHeads || {}).map(([e, gs]) => [lc(e), gs]);
   const everyone = [...new Set([...staffEmails, ...P().grades.flatMap(advisorEmails), ...reportTeam, ...heads.map(([e]) => e)])];
   const userIds = {};
@@ -1460,6 +1569,10 @@ async function applyPermissions(specs, staffEmails, out) {
       extra = advs.length ? ` · advisors ${advs.join(", ")}: Design` : " · no advisor email set";
       const hs = heads.filter(([, gs]) => gs.includes(s.grade)).map(([e]) => e);
       if (hs.length) { await design(hs); extra += ` · division head ${hs.join(", ")}: Design`; }
+    }
+    if (s.name === L.settings) {   // the Principal's go-ahead is saved here
+      for (const e of (P().principals || []).map(lc)) await sp("POST", `${base}/roleassignments/addroleassignment(principalid=${await userId(e)},roledefid=${role(3)})`);
+      if ((P().principals || []).length) extra += " · Principal: Contribute (go-ahead)";
     }
     if (s.kind !== "read") {   // Admin team reads every grade's marks, comments and awards to make report cards
       await design(reportTeam); extra += ` · Admin team (${reportTeam.length}): Design`;
