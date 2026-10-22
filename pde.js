@@ -137,6 +137,21 @@ function viewPdeGoals(box) {
   if (!S.pdeGrade || !grades.includes(S.pdeGrade)) S.pdeGrade = grades[0] || "";
   const g = S.pdeGrade, roster = g ? rosterFor(g) : [], subs = pdeSubjectsFor(g);
   const onBehalf = PD().advisorEntryGrades.includes(g) && canAdvise(g);
+  // Division heads (e.g. Head of Primary, G1–G5) and leaders: every grade they oversee on one screen.
+  const overview = grades.map((x) => { const r = rosterFor(x), sb = pdeSubjectsFor(x);
+    const set = r.reduce((t, s) => t + sb.filter((y) => goalOf(s.f.Title, y)).length, 0);
+    return { g: x, n: r.length, subs: sb.length, set, slots: r.length * sb.length, full: r.filter((s) => sb.length && sb.every((y) => goalOf(s.f.Title, y))).length,
+      targets: S.pde.goals.filter((gl) => gl.f.Grade === x && !blank(gl.f.TargetScore)).map((gl) => Number(gl.f.TargetScore)) }; });
+  const pct = (a, b) => (b ? Math.round((100 * a) / b) : 0);
+  const overviewHtml = grades.length > 1 ? `
+      <h3 style="margin-top:18px">${headGrades().length && !isLeader() ? `Your grades (${esc(grades[0])}–${esc(grades[grades.length - 1])})` : "All grades"} at a glance</h3>
+      <div class="table-wrap"><table><thead><tr><th>Grade</th><th>Advisor</th><th class="num">Bobaes</th><th class="num">Goals set</th><th style="width:22%">Progress</th><th class="num">All goals set</th><th class="num">Average target</th><th></th></tr></thead><tbody>
+        ${overview.map((o) => `<tr ${o.g === g ? 'style="background:rgba(120,140,170,.12)"' : ""}><td><b>${esc(o.g)}</b></td><td class="small">${esc(advisorName(o.g))}</td><td class="num">${o.n}</td>
+          <td class="num">${o.subs ? `${o.set} / ${o.slots}` : `<span class="muted small">No subjects set</span>`}</td>
+          <td>${o.subs ? `<div class="bar" title="${pct(o.set, o.slots)}%"><i style="width:${pct(o.set, o.slots)}%"></i></div><span class="small muted">${pct(o.set, o.slots)}%</span>` : ""}</td>
+          <td class="num">${o.full} / ${o.n}</td><td class="num">${o.targets.length ? Math.round(o.targets.reduce((a, b) => a + b, 0) / o.targets.length) + "%" : "–"}</td>
+          <td><button class="btn small" data-pgrade="${esc(o.g)}">Open</button></td></tr>`).join("")}
+      </tbody></table></div>` : "";
   box.innerHTML = `
     <h2>Bobae goals <span class="badge ok">Live</span></h2>
     <p class="small muted">Goals bobaes have set this semester (${esc(P().semester)} ${esc(P().academicYear)}). G6–G12 and ZSA enter their own; advisors enter them for G1–G5.</p>
@@ -148,8 +163,9 @@ function viewPdeGoals(box) {
             <td class="small">${gl ? `${esc(gl.f.Goal || "")}${gl.f.ActionPlan ? `<div class="muted">${esc(gl.f.ActionPlan)}</div>` : ""}` : `<span class="muted">Not set yet</span>`}</td>
             <td>${gl ? `<textarea class="fb" data-gid="${gl.id}" rows="2" maxlength="${PD().feedbackMax}">${esc(gl.f.TeacherFeedback || "")}</textarea>` : ""}</td><td class="rowstate"></td></tr>`).join("")}
         </tbody></table></div></details>`).join("")}` : ""}
+    ${overviewHtml}
     ${grades.length ? `
-      <h3 style="margin-top:18px">Grade overview</h3>
+      <h3 style="margin-top:18px" id="pdeGradeHead">${grades.length > 1 ? `${esc(g)}: each bobae` : "Grade overview"}</h3>
       <div class="row" style="margin-bottom:10px"><label style="max-width:160px"><span>Grade</span><select id="pdeGrade">${grades.map((x) => `<option ${x === g ? "selected" : ""}>${esc(x)}</option>`).join("")}</select></label>
         <span class="small muted" style="padding-bottom:8px">${subs.length ? `Core subjects: ${subs.map(esc).join(", ")}` : "No core subjects set for this grade yet (Setup → 7)."}</span></div>
       <div class="table-wrap"><table class="matrix"><thead><tr><th class="sticky">Bobae</th>${subs.map((s) => `<th class="center small">${esc(s)}</th>`).join("")}<th class="num">Set</th>${onBehalf ? "<th></th>" : ""}</tr></thead><tbody>
@@ -166,6 +182,7 @@ function viewPdeGoals(box) {
     catch (e) { st.className = "rowstate err"; st.textContent = "Not saved"; st.title = e.message; }
   }));
   const gs = $("#pdeGrade", box); if (gs) gs.onchange = (e) => { S.pdeGrade = e.target.value; render(); };
+  $$("[data-pgrade]", box).forEach((b) => (b.onclick = () => { S.pdeGrade = b.dataset.pgrade; render(); const h = $("#pdeGradeHead"); if (h) h.scrollIntoView({ behavior: "smooth" }); }));
   $$("[data-enter]", box).forEach((b) => (b.onclick = () => {
     const st = studentById(b.dataset.enter).f;
     $("#enterBox", box).innerHTML = `<h3 style="margin-top:16px">Goals for ${esc(st.CalledName || st.FullName)} (entered by you as advisor)</h3>
