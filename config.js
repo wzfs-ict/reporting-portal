@@ -68,14 +68,13 @@ window.APP_CONFIG = {
   principals: ["asumeg-ang@zhongshischool.org"],
   // Librarian: sees the Certificates tab (what to print, by class) and marks certificates as printed.
   librarians: ["lbirkenstock@zhongshischool.org"],   // Luna Birkenstock
-  // Primary (G1–G5): award categories that don't apply there, and the subjects a PTC sheet shows.
+  // Primary (G1–G5): the subjects a PTC sheet shows. Every award category is offered; teachers choose.
   primary: {
     grades: ["G1", "G2", "G3", "G4", "G5"],
-    hiddenAwardCategories: ["Dorm", "DCHSS Award", "English Ambassador", "IGCSE & AS", "Pi Day", "Podcast", "World Scholar's Cup"],
     ptcSubjects: ["Chinese", "English", "Maths", "Science", "Accelerate English", "Accelerated English"],
   },
   // At Midterm only these award categories can be given; everything else waits for the Final.
-  midtermAwardCategories: ["Top Students", "Outstanding Student"],
+  midtermAwardCategories: ["Top Students", "Outstanding Student", "Honours & High Honours", "PTL Awards"],
   // Division heads: review their grades (marks, comments, awards) and give the report card
   // go-ahead for them, like the Principal does for the rest. E.g. the Vice Principal (Primary) for G1–G5.
   divisionHeads: {

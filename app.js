@@ -999,18 +999,19 @@ const seasonLabel = (s) => (s === "Fall" || s === "Spring" ? s : "All year");
 // Advisor-only awards (criteria document): only the bobae's grade advisor / co-advisor, or an admin, may give them.
 const advisorOnly = (c) => c && c.f.GivenBy === "Advisors";
 const mayGive = (c, grade) => !advisorOnly(c) || isAdmin() || advisorEmails(grade).includes(S.me);
-// Categories offered for a grade: Primary skips the ones that don't apply there (config primary.hiddenAwardCategories),
-// and at Midterm only the midterm awards (Top Student, Outstanding Student) can be given.
-function awardCategoriesFor(g) {
-  const hide = isPrimary(g) ? ((P().primary || {}).hiddenAwardCategories || []).map(lc) : [];
+// Categories offered: every grade sees them all (teachers choose); at Midterm only the midterm ones
+// (config midtermAwardCategories: Top Student, Outstanding Student, Honours & High Honours, PTL Awards).
+function awardCategoriesFor() {
   const mid = isMidterm() ? (P().midtermAwardCategories || []).map(lc) : null;
-  return [...new Set(S.catalogue.map((c) => c.f.Category).filter(Boolean))]
-    .filter((c) => !hide.includes(lc(c)) && (!mid || mid.includes(lc(c))));
+  return [...new Set(S.catalogue.map((c) => c.f.Category).filter(Boolean))].filter((c) => !mid || mid.includes(lc(c)));
 }
+// Awards whose name already says "(Midterm)" or "(Finals)" only show in that period.
+const periodTagged = (c) => /\((midterm|finals?)\)\s*$/i.test(c.f.Title || "");
+const wrongPeriod = (c) => periodTagged(c) && /\(midterm\)\s*$/i.test(c.f.Title) !== isMidterm();
 function awardOptions(cat, selectedId) {
   if (!cat) return `<option value="">Choose a category first</option>`;
   const rank = (c) => (c.f.Season === P().semester ? 0 : !c.f.Season || c.f.Season === "Both" ? 1 : 2);   // this semester's first
-  const list = S.catalogue.filter((c) => c.f.Category === cat).sort((a, b) => rank(a) - rank(b) || (a.f.Title || "").localeCompare(b.f.Title || ""));
+  const list = S.catalogue.filter((c) => c.f.Category === cat && !wrongPeriod(c)).sort((a, b) => rank(a) - rank(b) || (a.f.Title || "").localeCompare(b.f.Title || ""));
   return `<option value="">Choose…</option>` + list.map((c) => `<option value="${esc(c.id)}" ${c.id === selectedId ? "selected" : ""}>${esc(c.f.Title)} · ${seasonLabel(c.f.Season)}${advisorOnly(c) ? " · advisors only" : ""}</option>`).join("");
 }
 function viewAwards(main) {
@@ -1025,7 +1026,7 @@ function viewAwards(main) {
   // Staff can read every award (for the duplicate check); the list below shows your own unless you oversee the grade.
   const visible = S.awards.filter((a) => (S.awAll ? true : a.f.Grade === g) && (seeAll || a.by === S.me || canAdvise(a.f.Grade)));
   const countFor = (id) => S.awards.filter((a) => a.f.StudentID === id).length;
-  const cats = awardCategoriesFor(g);
+  const cats = awardCategoriesFor();
   if (F.cat && !cats.includes(F.cat)) Object.assign(F, { cat: "", id: "" });
   const today = new Date().toISOString().slice(0, 10);
   main.innerHTML = `
@@ -1121,9 +1122,9 @@ function viewAwards(main) {
     const c = current(); if (!c) return;
     if ([...S.awSel].some((id) => !mayGive(c, studentById(id)?.f.Grade))) return flash("warn", "This award can only be given by the bobae's advisor or co-advisor.");
     // What prints on the report card: the teacher's own title, or "Award – Month", or the catalogue name.
-    // Midterm awards (Top Student, Outstanding Student) are marked so they're told apart from the Final ones.
+    // Midterm awards are marked "(Midterm)" so they're told apart from the Final ones (unless the name already says so).
     const awardName = (c.f.CustomTitle ? $("#awTitle").value.replace(/\s+/g, " ").trim() : c.f.AskMonth ? `${c.f.Title} – ${$("#awMonth").value}` : c.f.Title)
-      + (isMidterm() ? " (Midterm)" : "");
+      + (isMidterm() && !periodTagged(c) ? " (Midterm)" : "");
     const ids = [...S.awSel];
     // Duplicate check across all teachers: same bobae, same award this semester (ignoring the "(Midterm)" tag).
     const base = (n) => lc(n).replace(/\s*\(midterm\)\s*$/, "");
