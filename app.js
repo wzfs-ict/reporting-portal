@@ -546,6 +546,7 @@ function viewEntry(main) {
     <div class="sticky-actions">
       ${mine && !submitted ? `<button class="btn primary" id="submit">Submit to advisor</button>` : ""}
       ${submitted && advisesSome ? `<button class="btn" id="reopen">Reopen for the teacher</button>` : ""}
+      ${rows.length && ((mine && !submitted) || isAdmin()) ? `<button class="btn danger" id="delClass" style="margin-left:auto">Delete this class</button>` : ""}
       <span class="small muted" id="progress"></span>
     </div>`;
   $("#back").onclick = (e) => { e.preventDefault(); go(S.back); };
@@ -599,6 +600,19 @@ function viewEntry(main) {
   };
   const ro = $("#reopen");
   if (ro) ro.onclick = () => setSubmitted(rows.filter((r) => isAdmin() || canAdvise(r.list)), false);
+  // Created by mistake: the teacher (before submitting) or an admin removes the whole class.
+  // Deleted rows go to the SharePoint recycle bin, so ICT can restore them if needed.
+  const dc = $("#delClass");
+  if (dc) dc.onclick = async () => {
+    const filled = rows.filter((r) => !blank(r.f.Score) || (r.f.Remark || "").trim()).length;
+    if (!confirm(`Delete ${grade} ${subjectDisplay({ Subject: subject, ClassLevel: level })}${mine ? "" : ` (${teacher})`}?\n\nThis removes all ${rows.length} students from the class${filled ? `, including ${filled} entered mark${filled > 1 ? "s" : ""} and remarks` : ""}. ICT can restore it from the SharePoint recycle bin if needed.`)) return;
+    dc.disabled = true; dc.textContent = "Deleting…";
+    const res = await batch(rows.map((r) => ({ method: "DELETE", url: `${listUrl(r)}/${r.id}` })));
+    const bad = batchFailures(res);
+    await Promise.all([...new Set(rows.map((r) => r.list))].map((x) => loadMarks(x)));
+    if (bad.length) { render(); return flash("error", `${bad.length} of ${rows.length} rows could not be deleted: ${bad[0]?.body?.error?.message || ""}`); }
+    go(S.back || "classes"); flash("ok", `Deleted ${grade} ${subject}.`);
+  };
   const guests = new Set();
   const ao = $("#addOther"); if (ao) otherGradePicker(ao, grade, inClass, guests, () => {});
   const add = $("#addStudents");
