@@ -377,7 +377,7 @@ function otherGradePicker(box, classGrade, exclude, chosen, onChange) {
     box.innerHTML = `
       <p class="small muted" style="margin:0 0 8px">For bobaes who belong to another grade but sit in this ${esc(classGrade)} class. Their marks go on <b>their own</b> grade's report card and to their own advisor.</p>
       <div class="row" style="margin-bottom:8px"><label style="max-width:160px"><span>From grade</span><select class="ogGrade">${others.map((g) => `<option ${g === pick ? "selected" : ""}>${esc(g)}</option>`).join("")}</select></label></div>
-      ${list.length ? `<div class="grid">${list.map((s) => `<label style="color:var(--text)"><input type="checkbox" class="ogStu" value="${esc(s.f.Title)}" ${chosen.has(s.f.Title) ? "checked" : ""}> ${esc(s.f.CalledName || s.f.FullName)} <span class="muted small">${esc(s.f.FullName)}</span></label>`).join("")}</div>`
+      ${list.length ? `<div class="grid">${list.map((s) => `<label class="stu-pick"><input type="checkbox" class="ogStu" value="${esc(s.f.Title)}" ${chosen.has(s.f.Title) ? "checked" : ""}>${photo(s.f.Title, 32)}<span><b>${esc(s.f.CalledName || s.f.FullName)}</b><span class="muted small" style="display:block">${esc(s.f.FullName)}</span></span></label>`).join("")}</div>`
         : `<p class="small muted">Nobody to add from ${esc(pick || "other grades")}.</p>`}
       ${picked.length ? `<p class="small" style="margin-top:8px"><b>Added from other grades:</b> ${picked.map((s) => `${esc(s.f.CalledName || s.f.FullName)} <span class="badge">${esc(s.f.Grade)}</span>`).join(" ")}</p>` : ""}`;
     $(".ogGrade", box).onchange = (e) => { pick = e.target.value; draw(); };
@@ -417,7 +417,7 @@ function viewNewClass(main) {
           <span><button class="btn small" id="ncAll">Select all</button> <button class="btn small" id="ncNone">Select none</button></span>
         </div>
         ${roster.length ? `<div class="grid">${roster.map((s) => `
-          <label style="color:var(--text)"><input type="checkbox" class="ncStu" value="${esc(s.f.Title)}" checked> ${esc(s.f.CalledName || s.f.FullName)} <span class="muted small">${esc(s.f.FullName)}</span></label>`).join("")}</div>`
+          <label class="stu-pick"><input type="checkbox" class="ncStu" value="${esc(s.f.Title)}" checked>${photo(s.f.Title, 32)}<span><b>${esc(s.f.CalledName || s.f.FullName)}</b><span class="muted small" style="display:block">${esc(s.f.FullName)}</span></span></label>`).join("")}</div>`
           : notice("warn", "No students found for this grade in the roster.")}
       </div>
       <details class="card" ${guests.size ? "open" : ""}><summary>Add bobaes from other grades${guests.size ? ` (${guests.size} added)` : ""}</summary><div id="ncOther" style="margin-top:10px"></div></details>` : "";
@@ -539,7 +539,7 @@ function viewEntry(main) {
       </tbody></table></div>
     ${editable && (mine || isAdmin()) ? `
       <details class="card"><summary>Add students${missingIds.length ? ` (${missingIds.length} in ${esc(grade)} not in this class)` : ""}, or bobaes from other grades</summary>
-        ${missingIds.length ? `<div class="grid" style="margin-top:10px">${missingIds.map((s) => `<label style="color:var(--text)"><input type="checkbox" class="addStu" value="${esc(s.f.Title)}"> ${esc(s.f.CalledName || s.f.FullName)} <span class="muted small">${esc(s.f.FullName)}</span></label>`).join("")}</div>` : ""}
+        ${missingIds.length ? `<div class="grid" style="margin-top:10px">${missingIds.map((s) => `<label class="stu-pick"><input type="checkbox" class="addStu" value="${esc(s.f.Title)}">${photo(s.f.Title, 32)}<span><b>${esc(s.f.CalledName || s.f.FullName)}</b><span class="muted small" style="display:block">${esc(s.f.FullName)}</span></span></label>`).join("")}</div>` : ""}
         <h3 style="margin-top:14px">From other grades</h3><div id="addOther"></div>
         <p><button class="btn" id="addStudents">Add selected</button></p>
       </details>` : ""}
