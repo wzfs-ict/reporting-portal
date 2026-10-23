@@ -1022,7 +1022,8 @@ function viewAwards(main) {
   const q = lc(S.awSearch);
   const roster = rosterFor(g).filter((s) => !q || lc(`${s.f.FullName} ${s.f.CalledName} ${s.f.Title}`).includes(q));
   const seeAll = isLeader();
-  const visible = S.awards.filter((a) => (S.awAll ? true : a.f.Grade === g));
+  // Staff can read every award (for the duplicate check); the list below shows your own unless you oversee the grade.
+  const visible = S.awards.filter((a) => (S.awAll ? true : a.f.Grade === g) && (seeAll || a.by === S.me || canAdvise(a.f.Grade)));
   const countFor = (id) => S.awards.filter((a) => a.f.StudentID === id).length;
   const cats = awardCategoriesFor(g);
   if (F.cat && !cats.includes(F.cat)) Object.assign(F, { cat: "", id: "" });
@@ -1124,8 +1125,10 @@ function viewAwards(main) {
     const awardName = (c.f.CustomTitle ? $("#awTitle").value.replace(/\s+/g, " ").trim() : c.f.AskMonth ? `${c.f.Title} – ${$("#awMonth").value}` : c.f.Title)
       + (isMidterm() ? " (Midterm)" : "");
     const ids = [...S.awSel];
-    const dupes = ids.filter((id) => S.awards.some((a) => a.f.StudentID === id && lc(a.f.AwardName) === lc(awardName)));
-    if (dupes.length && !confirm(`${dupes.length} of these students already have "${awardName}" this semester. Add it again?`)) return;
+    // Duplicate check across all teachers: same bobae, same award this semester (ignoring the "(Midterm)" tag).
+    const base = (n) => lc(n).replace(/\s*\(midterm\)\s*$/, "");
+    const dupes = ids.map((id) => [id, S.awards.find((a) => a.f.StudentID === id && base(a.f.AwardName) === base(awardName))]).filter(([, a]) => a);
+    if (dupes.length && !confirm(`Already given this semester:\n${dupes.slice(0, 8).map(([id, a]) => `• ${studentById(id)?.f.CalledName || id}: "${a.f.AwardName}" by ${a.by === S.me ? "you" : a.byName || a.f.AwardedBy}`).join("\n")}${dupes.length > 8 ? "\n…" : ""}\n\nGive it again anyway?`)) return;
     if (c.f.CustomTitle) {
       const mine = S.awards.filter((a) => a.by === S.me && a.f.Category === c.f.Category && !S.catalogue.some((x) => x.f.Title === a.f.AwardName && !x.f.CustomTitle));
       if (mine.length + ids.length > 1 && !confirm(`Each teacher gives only ONE Teacher Award per semester, for one subject. You have already given ${mine.length} this semester. Save anyway?`)) return;
@@ -1677,7 +1680,9 @@ async function applyPermissions(specs, staffEmails, out) {
     await sp("POST", `${base}/roleassignments/addroleassignment(principalid=${owners.Id},roledefid=${role(5)})`);
     await sp("POST", `${base}/roleassignments/addroleassignment(principalid=${group.Id},roledefid=${role(s.kind === "read" ? 2 : 3)})`);
     const props = { __metadata: { type: "SP.List" }, EnableVersioning: true };
-    if (s.kind !== "read") Object.assign(props, { ReadSecurity: 2, WriteSecurity: 2 });
+    // Item-level privacy: you read and edit only your own rows. Awards are readable by all staff (so a duplicate
+    // award is caught whoever gave the first one) but still editable only by whoever gave them.
+    if (s.kind !== "read") Object.assign(props, { ReadSecurity: s.name === L.awards ? 1 : 2, WriteSecurity: 2 });
     await sp("POST", base, props, { "X-HTTP-Method": "MERGE", "IF-MATCH": "*" });
     let extra = "";
     const design = async (emails) => { for (const e of emails) await sp("POST", `${base}/roleassignments/addroleassignment(principalid=${await userId(e)},roledefid=${role(4)})`); };
