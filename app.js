@@ -208,6 +208,15 @@ const headGrades = () => (P().divisionHeads || {})[S.me] || [];
 const viewGrades = () => isLeader() ? P().grades : P().grades.filter((g) => advisorGrades().includes(g) || headGrades().includes(g));
 // "View as" (admins only): preview the app as someone else. Read-only; graph() refuses writes.
 const realAdmin = () => P().admins.map(lc).includes(S.realMe);
+// Does a Teacher text (from the Subjects list) mean me? Matches my email, or my name in any order,
+// ignoring titles ("Mrs. Xochitl Tobias" = "Tobias Xochitl"). Several teachers can be listed: "A, B / C".
+const nameWords = (s) => lc(s).replace(/\b(mr|mrs|ms|miss|dr)\b\.?/g, " ").split(/[^a-zÀ-￿]+/).filter((w) => w.length > 1);
+function isMyName(text) {
+  if (!text) return true;
+  if (emailsOf(text).includes(S.me)) return true;
+  const mine = new Set([...nameWords(S.meName), ...nameWords(nameOf(S.me))]);
+  return String(text).split(/[,;\/&]|\band\b/).some((part) => { const w = nameWords(part); return w.length > 0 && w.every((x) => mine.has(x)); });
+}
 const nameOf = (e) => (P().names || {})[e] || (Object.values(P().advisors || {}).find((a) => emailsOf(a.email)[0] === e)?.name) || e;
 const advisorName = (g) => (P().advisors[g] && P().advisors[g].name) || "";
 
@@ -458,6 +467,12 @@ function viewNewClass(main) {
     const existing = allMarks().filter((r) => r.by === S.me && classGradeOf(r) === g && r.f.Subject === subject && (r.f.ClassLevel || "") === level);
     if (existing.length) { flash("warn", "You already have this class. Opening it."); return openClass(g, subject, level, S.me, "classes"); }
     const subj = S.subjects.find((s) => s.f.Grade === g && s.f.Title === subject);
+    // Guard against picking someone else's subject by mistake (a second class would block the grade's report cards).
+    const others = [...new Set(allMarks().filter((r) => r.by !== S.me && classGradeOf(r) === g && r.f.Subject === subject
+      && (!level || !r.f.ClassLevel || lc(r.f.ClassLevel) === lc(level))).map((r) => r.byName || r.f.TeacherName))].filter(Boolean);
+    const listed = subj && subj.f.Teacher && !isMyName(subj.f.Teacher) ? subj.f.Teacher : "";
+    if ((others.length || listed) && !confirm(`${others.length ? `${others.join(", ")} already ${others.length > 1 ? "have" : "has"} a ${g} ${subject}${level ? ` (${level})` : ""} class.` : `The subject list says ${g} ${subject} is taught by ${listed}.`}\n\n`
+      + `Continue only if you really teach this subject${level ? "" : " (or a separate group: then pick its class level first)"}. Otherwise press Cancel and choose your own subject.`)) return;
     $("#ncCreate").disabled = true; $("#ncCreate").textContent = "Creating…";
     try {
       await createRows(g, subject, subj ? subj.f.SubjectType : "I", level, ids);
