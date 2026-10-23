@@ -297,7 +297,7 @@ function signInScreen(main) {
       <h3>How it works</h3>
       <ol class="steps small">
         <li><b>My classes</b>: add the grade and subject you teach. Your class list appears from the school roster.</li>
-        <li>Type each student's <b>score</b>, pick a <b>behaviour</b> rating and add a short <b>remark</b>. It saves as you go.</li>
+        <li>Type each student's <b>score</b> (Schoology score), pick a <b>behaviour</b> rating and add a short <b>remark</b>. It saves as you go.</li>
         <li>Press <b>Submit to advisor</b> when the class is complete.</li>
         <li><b>Awards</b>: tap students' names, pick the award and save. No typing names.</li>
       </ol>
@@ -521,9 +521,9 @@ function viewEntry(main) {
     <div id="flash"></div>
     ${submitted && mine && !isAdmin() ? notice("ok", "Submitted to the advisor. To change something, ask your grade advisor to reopen it.") : ""}
     ${supervisor ? notice("warn", "You are editing another teacher's class as advisor. Changes are logged in SharePoint version history.") : ""}
-    <div class="legend"><b>Behaviour:</b> ${scale.map((b) => `<span>${b.value} = ${esc(b.label)}</span>`).join("")}<span>· Score 0–100</span><span>· ⚑ = the advisor should raise this at the parent meeting</span></div>
+    <div class="legend"><b>Behaviour:</b> ${scale.map((b) => `<span>${b.value} = ${esc(b.label)}</span>`).join("")}<span>· Score 0–100 (Schoology score)</span><span>· ⚑ = the advisor should raise this at the parent meeting</span></div>
     <div class="table-wrap"><table class="entry">
-      <thead><tr><th>#</th><th>Student</th><th class="num">Score</th><th>Behaviour</th><th>Remark (optional, max ${P().remarkMaxLength})</th><th class="center" title="Flag a concern for the advisor">⚑ Flag</th><th></th>${editable && (mine || isAdmin()) ? "<th></th>" : ""}</tr></thead>
+      <thead><tr><th>#</th><th>Student</th><th class="num">Score <span class="small muted">(Schoology score)</span></th><th>Behaviour</th><th>Remark (optional, max ${P().remarkMaxLength})</th><th class="center" title="Flag a concern for the advisor">⚑ Flag</th><th></th>${editable && (mine || isAdmin()) ? "<th></th>" : ""}</tr></thead>
       <tbody>
       ${rows.map((r, i) => `
         <tr data-id="${r.id}">
@@ -1923,7 +1923,7 @@ function viewHelp(main) {
     <h1>Help</h1>
     <div class="card"><h3>Entering marks</h3><ol class="steps small">
       <li><b>My classes → + Add a class</b>. Pick the grade and subject. Untick students who don't take it. For split groups (e.g. Chinese levels) type the group name.</li>
-      <li>Type a score (0–100), press <b>Enter</b> to move to the next student. Pick behaviour 1–4 and add a short remark if you like.</li>
+      <li>Type a score (0–100, Schoology score), press <b>Enter</b> to move to the next student. Pick behaviour 1–4 and add a short remark if you like.</li>
       <li>Every change saves on its own. "Saved ✓" appears at the end of the row.</li>
       <li>When the class is finished, press <b>Submit to advisor</b>.</li></ol></div>
     <div class="card"><h3>Who can see what</h3><ul class="small">
