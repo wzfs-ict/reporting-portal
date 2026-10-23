@@ -1000,7 +1000,7 @@ const seasonLabel = (s) => (s === "Fall" || s === "Spring" ? s : "All year");
 const advisorOnly = (c) => c && c.f.GivenBy === "Advisors";
 const mayGive = (c, grade) => !advisorOnly(c) || isAdmin() || advisorEmails(grade).includes(S.me);
 // Categories offered: every grade sees them all (teachers choose); at Midterm only the midterm ones
-// (config midtermAwardCategories: Top Student, Outstanding Student, Honours & High Honours, PTL Awards).
+// (config midtermAwardCategories: Honours & High Honours, PTL Awards).
 function awardCategoriesFor() {
   const mid = isMidterm() ? (P().midtermAwardCategories || []).map(lc) : null;
   return [...new Set(S.catalogue.map((c) => c.f.Category).filter(Boolean))].filter((c) => !mid || mid.includes(lc(c)));
@@ -1022,9 +1022,8 @@ function viewAwards(main) {
   const g = S.awGrade;
   const q = lc(S.awSearch);
   const roster = rosterFor(g).filter((s) => !q || lc(`${s.f.FullName} ${s.f.CalledName} ${s.f.Title}`).includes(q));
-  const seeAll = isLeader();
-  // Staff can read every award (for the duplicate check); the list below shows your own unless you oversee the grade.
-  const visible = S.awards.filter((a) => (S.awAll ? true : a.f.Grade === g) && (seeAll || a.by === S.me || canAdvise(a.f.Grade)));
+  // Everyone sees every award given this semester (who gave it, too), so teachers can check before giving one.
+  const visible = S.awards.filter((a) => S.awAll || a.f.Grade === g);
   const countFor = (id) => S.awards.filter((a) => a.f.StudentID === id).length;
   const cats = awardCategoriesFor();
   if (F.cat && !cats.includes(F.cat)) Object.assign(F, { cat: "", id: "" });
@@ -1070,14 +1069,14 @@ function viewAwards(main) {
         <p style="margin-top:12px"><button class="btn primary" id="awSave" disabled>Save award</button></p>
       </div>
     </div>
-    <h2>${seeAll ? "Awards this semester" : "Awards you have given this semester"}</h2>
+    <h2>Awards this semester</h2>
     <label class="small"><input type="checkbox" id="awAllGrades" ${S.awAll ? "checked" : ""}> Show all grades</label>
     <div class="table-wrap" style="margin-top:8px"><table>
-      <thead><tr><th>Student</th><th>ID</th><th>Grade</th><th>Award</th><th>Type</th><th>Points</th><th>Date</th>${seeAll ? "<th>Given by</th>" : ""}<th></th></tr></thead>
+      <thead><tr><th>Student</th><th>ID</th><th>Grade</th><th>Award</th><th>Type</th><th>Points</th><th>Date</th><th>Given by</th><th></th></tr></thead>
       <tbody>${visible.sort((a, b) => (b.f.AwardDate || "").localeCompare(a.f.AwardDate || "")).map((a) => `
         <tr><td>${esc(a.f.FullName)}</td><td class="small">${esc(a.f.StudentID)}</td><td>${esc(a.f.Grade)}</td><td>${esc(a.f.AwardName)}<div class="small muted">${esc(a.f.Category)}</div></td>
         <td class="small">${esc(a.f.CertificateType)}</td><td>${esc(a.f.Points || "")}</td><td class="small">${esc((a.f.AwardDate || "").slice(0, 10))}</td>
-        ${seeAll ? `<td class="small">${esc(a.byName)}</td>` : ""}
+        <td class="small">${a.by === S.me ? "You" : esc(a.byName || a.f.AwardedBy || "")}</td>
         <td>${a.by === S.me || isAdmin() ? `<button class="btn small danger" data-del="${a.id}">Delete</button>` : ""}</td></tr>`).join("")}
         ${!visible.length ? `<tr><td colspan="9" class="muted">None yet.</td></tr>` : ""}
       </tbody></table></div>`;

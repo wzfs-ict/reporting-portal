@@ -74,7 +74,7 @@ window.APP_CONFIG = {
     ptcSubjects: ["Chinese", "English", "Maths", "Science", "Accelerate English", "Accelerated English"],
   },
   // At Midterm only these award categories can be given; everything else waits for the Final.
-  midtermAwardCategories: ["Top Students", "Outstanding Student", "Honours & High Honours", "PTL Awards"],
+  midtermAwardCategories: ["Honours & High Honours", "PTL Awards"],
   // Division heads: review their grades (marks, comments, awards) and give the report card
   // go-ahead for them, like the Principal does for the rest. E.g. the Vice Principal (Primary) for G1–G5.
   divisionHeads: {
