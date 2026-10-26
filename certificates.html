@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WZFS Certificates</title>
+<style>
+  /* Fonts are ones Windows already has (no downloads, works in China). */
+  :root { --navy: #17233B; --blue: #2F5FA8; --sky: #8FB1E3; --gold: #C9A227; --ink: #222; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #e9e7e1; font-family: "Segoe UI", Arial, sans-serif; color: var(--ink); }
+  .bar { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; padding: 12px 16px; background: var(--navy); color: #fff; }
+  .bar b { font-size: 16px; }
+  .bar label { display: flex; gap: 6px; align-items: center; font-size: 14px; }
+  .bar input { padding: 4px 6px; font: inherit; }
+  .bar button { padding: 8px 16px; border: 0; border-radius: 6px; background: var(--gold); color: var(--navy); font-weight: 700; font-size: 14px; cursor: pointer; }
+  .bar .hint { font-size: 12px; opacity: .8; flex-basis: 100%; }
+  .empty { max-width: 560px; margin: 60px auto; padding: 24px; background: #fff; border-radius: 8px; }
+
+  /* One A4 portrait certificate */
+  .cert { position: relative; width: 210mm; height: 297mm; margin: 16px auto; background: #fff; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,.15);
+    font-family: "Palatino Linotype", "Book Antiqua", Georgia, serif; text-align: center; }
+  .cert svg.corner { position: absolute; width: 70mm; height: 70mm; }
+  .cert svg.tr { top: 0; right: 0; }
+  .cert svg.bl { bottom: 0; left: 0; transform: rotate(180deg); }
+  .head { position: absolute; top: 16mm; left: 16mm; display: flex; gap: 6mm; align-items: center; text-align: left; }
+  .head img { width: 30mm; height: 30mm; object-fit: contain; }
+  .head .school { font-family: Georgia, serif; font-weight: 700; font-size: 21pt; line-height: 1.1; color: var(--navy); }
+  .head .city { font-size: 11pt; color: #444; margin-top: 1mm; }
+  .body { position: absolute; top: 72mm; left: 18mm; right: 18mm; }
+  .this { font-size: 13pt; }
+  .rule { height: 0; border-top: 1.2pt solid var(--gold); width: 120mm; margin: 4mm auto; }
+  .award { font-family: Georgia, serif; font-variant: small-caps; font-weight: 700; color: var(--navy); font-size: 27pt; letter-spacing: .5pt; line-height: 1.15;
+    text-shadow: 0 1px 0 #fff, 0 2px 2px rgba(23,35,59,.25); }
+  .level { font-family: Georgia, serif; font-weight: 700; color: var(--gold); font-size: 22pt; letter-spacing: 2pt; text-transform: uppercase; margin-top: 1mm; }
+  .presented { font-size: 13pt; margin-top: 9mm; }
+  .name { font-family: "Bahnschrift Condensed", "Bahnschrift", Impact, "Arial Narrow", sans-serif; font-weight: 700; font-stretch: condensed; color: var(--navy);
+    font-size: 34pt; line-height: 1.1; margin: 6mm 0 7mm; text-transform: uppercase; letter-spacing: .5pt; }
+  .name .called { text-transform: none; }
+  .citation { font-size: 13pt; line-height: 1.55; max-width: 150mm; margin: 0 auto; }
+  .conferred { font-size: 13pt; margin-top: 8mm; }
+  .signs { position: absolute; left: 22mm; right: 22mm; top: 212mm; display: flex; justify-content: space-between; }
+  .sign { width: 62mm; text-align: center; }
+  .sign .sig { height: 17mm; display: flex; align-items: flex-end; justify-content: center; }
+  .sign .sig img { max-height: 17mm; max-width: 55mm; }
+  .sign .who { border-top: .8pt solid #333; padding-top: 1.5mm; font-family: Georgia, serif; font-weight: 700; font-size: 11pt; text-transform: uppercase; }
+  .sign .role { font-size: 11pt; color: #444; }
+  .accr { position: absolute; bottom: 12mm; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 3mm; font-size: 9pt; font-style: italic; color: #555; }
+  .accr img { width: 22mm; height: 22mm; }
+  [contenteditable]:hover { outline: 1px dashed #9ab; }
+  [contenteditable]:focus { outline: 1px solid var(--blue); }
+
+  @page { size: A4 portrait; margin: 0; }
+  @media print {
+    body { background: #fff; }
+    .bar, .empty { display: none; }
+    .cert { margin: 0; box-shadow: none; break-after: page; }
+    [contenteditable]:hover, [contenteditable]:focus { outline: none; }
+  }
+</style>
+</head>
+<body>
+<div class="bar">
+  <b id="count">Certificates</b>
+  <label>Conferred on <input type="date" id="conferred"></label>
+  <button id="print">🖨 Print</button>
+  <span class="hint">Click any text on a certificate to fix it before printing (changes aren't saved). Print on A4, "Margins: None", "Background graphics" on.</span>
+</div>
+<div id="certs"></div>
+<script src="certificates.js"></script>
+</body>
+</html>

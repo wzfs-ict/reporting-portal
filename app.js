@@ -838,6 +838,7 @@ function viewCerts(main) {
         <label style="max-width:240px"><span>Award type</span>${sel("cfCat", [["", "All types"], ...cats.map((c) => [c, c])], F.cat)}</label>
         <label style="max-width:180px"><span>Show</span>${sel("cfStatus", [["todo", "Still to print"], ["done", "Printed"], ["all", "All"]], F.status)}</label>
         <button class="btn primary" id="cfPrint">🖨 Print this list</button>
+        ${shown.length ? `<button class="btn primary" id="cfCerts">🎓 Print certificates (${shown.length})</button>` : ""}
         <button class="btn" id="cfXlsx">Excel</button>
         ${F.status !== "done" && shown.length ? `<button class="btn" id="cfMark">Mark all shown as printed</button>` : ""}
       </div>
@@ -855,6 +856,15 @@ function viewCerts(main) {
   const setF = (k) => (e) => { F[k] = e.target.value; render(); };
   $("#cfGrade").onchange = setF("grade"); $("#cfCat").onchange = setF("cat"); $("#cfStatus").onchange = setF("status");
   $("#cfPrint").onclick = () => window.print();
+  // The certificates open on their own page (certificates.html), one A4 page each, ready to print.
+  const cc = $("#cfCerts"); if (cc) cc.onclick = () => {
+    const C2 = P().certificates || {};
+    const payload = { semester: P().semester, year: yearLong(), signatories: C2.signatories || [], citations: C2.citations || {}, typeCitations: C2.typeCitations || {},
+      items: shown.map((c) => ({ name: c.name, award: c.a.f.AwardName, type: c.a.f.CertificateType, category: c.a.f.Category, grade: c.grade })) };
+    try { localStorage.setItem("wzfs_cert_handoff_v1", JSON.stringify(payload)); } catch (e) { return flash("error", "Your browser blocked the hand-off (storage full or private mode)."); }
+    if (!window.open("certificates.html", "_blank")) flash("warn", "Your browser blocked the new tab. Allow pop-ups for this site, then click again.");
+    else flash("ok", `Opened ${shown.length} certificate${shown.length > 1 ? "s" : ""}. After printing, tick them off here (or “Mark all shown as printed”).`);
+  };
   $("#cfXlsx").onclick = async () => { try { await loadXlsx(); download(sheetBook(shown.map((c) => ({ Class: c.grade, Name_on_certificate: c.name, Called_name: c.called, Student_ID: c.a.f.StudentID,
     Award: c.a.f.AwardName, Certificate_type: c.a.f.CertificateType, Given_by: c.a.byName || c.a.f.AwardedBy, Date: (c.a.f.AwardDate || "").slice(0, 10), Printed: c.a.f.Printed ? "Yes" : "" })), "Certificates"),
     `Certificates_${P().semester}${P().academicYear.slice(0, 4)}${F.grade ? "_" + F.grade : ""}.xlsx`); } catch (e) { flash("error", e.message); } };

@@ -75,6 +75,29 @@ window.APP_CONFIG = {
   },
   // At Midterm only these award categories can be given; everything else waits for the Final.
   midtermAwardCategories: ["Honours & High Honours", "PTL Awards"],
+  // Printed certificates (Certificates tab → Print certificates). The line under the name is
+  // "<citation> during the <Semester> Semester of School Year <year>". Most specific wins: award name, then category, then certificate type.
+  certificates: {
+    signatories: [
+      { name: "Arsenio Sumeg-ang", title: "School Principal", sig: "cert/sig-principal.png" },
+      { name: "Moody Lee", title: "School President", sig: "" },
+    ],
+    citations: {
+      "English Token Award (Gold)": "for achieving a 100% token score",
+      "English Token Award (Silver)": "for achieving a token score above 98%",
+      "English Token Award (Bronze)": "for achieving a token score above 95%",
+      "Honours & High Honours": "for outstanding academic results",
+      "Core Values": "for living out the school's core values",
+      "PTL Awards": "for being an outstanding role model",
+    },
+    typeCitations: {
+      "Certificate of Achievement": "for outstanding achievement",
+      "Certificate of Recognition": "in recognition of outstanding effort and achievement",
+      "Certificate of Participation": "for active and enthusiastic participation",
+      "Certificate of Distinction": "for distinguished achievement",
+      "Teacher Award": "in recognition of excellence",
+    },
+  },
   // Division heads: review their grades (marks, comments, awards) and give the report card
   // go-ahead for them, like the Principal does for the rest. E.g. the Vice Principal (Primary) for G1–G5.
   divisionHeads: {
