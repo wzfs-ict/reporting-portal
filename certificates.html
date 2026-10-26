@@ -63,6 +63,16 @@
   .cert.green .accr img { background: #fff; border-radius: 50%; }
   .cert.green .name { font-family: "Segoe UI", Arial, sans-serif; font-size: 22pt; border-bottom: .8pt solid var(--green); padding-bottom: 3mm; min-width: 110mm; }
 
+  /* Landscape graduation awards (Principal's, Chairman's, Parents' Association …) */
+  .cert.land { width: 297mm; height: 210mm; page: land; }
+  .cert.land .chev { display: none; }
+  .cert.land .script { font-family: "Edwardian Script ITC", "Monotype Corsiva", "Segoe Script", cursive; font-size: 40pt; color: #111; line-height: 1.15;
+    border-bottom: .9pt solid var(--gold); padding: 0 10mm 1mm; min-width: 150mm; }
+  .cert.land .kicker { font-family: Georgia, serif; text-transform: uppercase; letter-spacing: 2pt; color: var(--blue); font-size: 13pt; margin-top: 2mm; }
+  .cert.land .ptitle { font-family: Georgia, "Times New Roman", serif; text-transform: uppercase; color: var(--navy); letter-spacing: 1.5pt; line-height: 1.1; }
+  .cert.land .signs .sign { width: 60mm; }
+  @page land { size: A4 landscape; margin: 0; }
+
   [contenteditable]:hover { outline: 1px dashed #8aa3c8; }
   [contenteditable]:focus { outline: 1px solid var(--blue); background: #fffbe6; }
   .edited::after { content: ""; }

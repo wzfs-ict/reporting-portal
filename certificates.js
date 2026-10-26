@@ -32,6 +32,12 @@
   const chev = `<svg class="chev %C" viewBox="0 0 60 100" aria-hidden="true"><polygon points="60,0 20,50 60,100 44,100 4,50 44,0" fill="var(--chev)"/><polygon points="60,14 32,50 60,86 60,72 44,50 60,28" fill="var(--chev2)"/></svg>`;
   const tri = `<svg class="tri" style="top:0;left:0;width:210mm;height:297mm" viewBox="0 0 210 297" aria-hidden="true">
     <polygon points="0,0 92,0 80,22 0,22" fill="#1F6B3A"/><polygon points="150,190 210,160 210,297 120,297" fill="var(--green)"/><polygon points="168,215 210,195 210,297 150,297" fill="#1F6B3A"/></svg>`;
+  const waves = `<svg style="position:absolute;inset:0;width:297mm;height:210mm" viewBox="0 0 297 210" aria-hidden="true">
+    <path d="M0,0 H297 V8 C230,20 120,0 0,14 Z" fill="var(--navy)"/><path d="M0,14 C120,0 230,20 297,8" fill="none" stroke="var(--gold)" stroke-width=".8"/>
+    <path d="M0,18 C110,5 230,24 297,13" fill="none" stroke="#C9D6EE" stroke-width="1.6"/>
+    <path d="M0,210 H297 V198 C220,190 110,208 0,194 Z" fill="var(--navy)"/><path d="M0,194 C110,208 220,190 297,198" fill="none" stroke="var(--gold)" stroke-width=".8"/>
+    <path d="M0,190 C110,203 220,185 297,193" fill="none" stroke="#C9D6EE" stroke-width="1.6"/>
+    <path d="M12,32 v-8 h8 M285,32 v-8 h-8 M12,176 v8 h8 M285,176 v8 h-8" fill="none" stroke="var(--gold)" stroke-width=".8"/></svg>`;
   const orn = `<svg class="orn" viewBox="0 0 128 4" aria-hidden="true"><line x1="0" y1="2" x2="56" y2="2" stroke="var(--gold)" stroke-width=".6"/><line x1="72" y1="2" x2="128" y2="2" stroke="var(--gold)" stroke-width=".6"/>
     <polygon points="64,0 67,2 64,4 61,2" fill="var(--gold)"/><circle cx="58.5" cy="2" r=".8" fill="var(--gold)"/><circle cx="69.5" cy="2" r=".8" fill="var(--gold)"/></svg>`;
   const signs = (data.signatories || []).map((s) => `<div class="sign"><div class="sig">${s.sig ? `<img src="${esc(s.sig)}" alt="">` : ""}</div>
@@ -45,6 +51,28 @@
     const level = a.level, typeWord = t.type || (it.type || "").replace(/^Certificate of\s*/i, "") || "Recognition";
     const after = ((t.afterByLevel || {})[level] || t.after || "").replace("{level}", level);
     const term = `${esc(opts.semester)} Semester, School Year <span style="white-space:nowrap">${esc(opts.year)}</span>.`;
+    if (t.theme === "prestige") {
+      // Its own defaults instead of the portrait "is awarded to … for".
+      const t = Object.assign({ intro: "This certificate hereby recognizes that" }, T[it.category] || {}, T[base] || {});
+      // Landscape graduation awards: "The Award of the Chairman of the Board (Servant Leadership)" → kicker + title + quality.
+      const m = !t.kicker && title.match(/^The Award of (.+)$/i);
+      const kicker = t.kicker || (m ? "The Award of" : ""), big = t.title || (m ? m[1] : title);
+      const lead = (level ? (t.lead || "through sustained demonstration of exemplary “{level}” is the worthy recipient of") : "is the worthy recipient of").replace("{level}", esc(level));
+      return `<section class="cert land">${waves}
+      <div class="head" style="top:17mm"><img src="cert/wzfs-logo.png" alt="" style="width:22mm;height:22mm"><div><div class="school">Weihai Zhongshi Foreign School</div><div class="city">Weihai City, Shandong China</div></div></div>
+      <div class="main" style="top:42mm;bottom:62mm;left:30mm;right:30mm;gap:2.4mm">
+        ${ed(it.id, "intro", "intro", esc(t.intro || "This certificate hereby recognizes that"))}
+        ${ed(it.id, "name", "script", esc(it.name))}
+        ${ed(it.id, "lead", "lead", lead, "max-width:170mm")}
+        ${kicker ? ed(it.id, "kicker", "kicker", esc(kicker)) : ""}
+        ${ed(it.id, "award", "ptitle", esc(big), `font-size:${big.length > 34 ? 22 : big.length > 24 ? 27 : 31}pt`)}
+        <div class="term" style="font-family:'Segoe UI',Arial,sans-serif;font-size:12pt">for the School Year <span style="white-space:nowrap">${esc(opts.year)}</span>.</div>
+        <div class="conferred" style="font-family:'Segoe UI',Arial,sans-serif;font-size:12pt;margin-top:-2mm">${conferredHtml}</div>
+      </div>
+      <div class="signs" style="top:150mm;left:50mm;right:95mm">${signs}</div>
+      <div class="accr" style="top:152mm;left:auto;right:24mm">Accredited by:<img src="cert/wasc-logo.png" alt="WASC"></div>
+    </section>`;
+    }
     if (t.theme === "green") return `<section class="cert green">${tri}
       <div class="head" style="justify-content:flex-start;left:8mm;top:4mm;color:#fff"><img src="cert/wzfs-logo.png" alt="" style="width:16mm;height:16mm;background:#fff;border-radius:50%">
         <div class="school" style="color:#fff;font-size:15pt;text-align:left">Weihai Zhongshi<br>Foreign School</div></div>
