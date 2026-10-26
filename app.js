@@ -859,8 +859,11 @@ function viewCerts(main) {
   // The certificates open on their own page (certificates.html), one A4 page each, ready to print.
   const cc = $("#cfCerts"); if (cc) cc.onclick = () => {
     const C2 = P().certificates || {};
-    const payload = { semester: P().semester, year: yearLong(), signatories: C2.signatories || [], citations: C2.citations || {}, typeCitations: C2.typeCitations || {},
-      items: shown.map((c) => ({ name: c.name, award: c.a.f.AwardName, type: c.a.f.CertificateType, category: c.a.f.Category, grade: c.grade })) };
+    // The "(Midterm)" tag the portal adds isn't printed; a catalogue name that says it (Honours (Midterm)) is kept.
+    const printName = (n) => S.catalogue.some((x) => x.f.Title === n) ? n : String(n || "").replace(/\s*\(midterm\)\s*$/i, "");
+    const custom = (a) => !S.catalogue.some((x) => x.f.Title === a.f.AwardName) && S.catalogue.some((x) => x.f.Category === a.f.Category && x.f.CustomTitle);
+    const payload = { semester: P().semester, year: yearLong(), label: [F.grade, F.cat].filter(Boolean).join(" "), signatories: C2.signatories || [], templates: C2.templates || {},
+      items: shown.map((c) => ({ id: c.a.id, name: c.name, award: printName(c.a.f.AwardName), type: c.a.f.CertificateType, category: c.a.f.Category, grade: c.grade, teacherAward: custom(c.a) })) };
     try { localStorage.setItem("wzfs_cert_handoff_v1", JSON.stringify(payload)); } catch (e) { return flash("error", "Your browser blocked the hand-off (storage full or private mode)."); }
     if (!window.open("certificates.html", "_blank")) flash("warn", "Your browser blocked the new tab. Allow pop-ups for this site, then click again.");
     else flash("ok", `Opened ${shown.length} certificate${shown.length > 1 ? "s" : ""}. After printing, tick them off here (or “Mark all shown as printed”).`);

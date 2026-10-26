@@ -75,27 +75,35 @@ window.APP_CONFIG = {
   },
   // At Midterm only these award categories can be given; everything else waits for the Final.
   midtermAwardCategories: ["Honours & High Honours", "PTL Awards"],
-  // Printed certificates (Certificates tab → Print certificates). The line under the name is
-  // "<citation> during the <Semester> Semester of School Year <year>". Most specific wins: award name, then category, then certificate type.
+  // Printed certificates (Certificates tab → Print certificates), in the library's Canva house style:
+  //   This · CERTIFICATE of <type> · <intro> · NAME · <lead> · AWARD · -LEVEL- · <after> · Semester, School Year · Conferred …
+  // Templates are matched by award name first, then category, then "default". The level comes from the award name,
+  // e.g. "Outstanding Student Award (Bronze)" → BRONZE. type defaults to the award's certificate type.
   certificates: {
     signatories: [
       { name: "Arsenio Sumeg-ang", title: "School Principal", sig: "cert/sig-principal.png" },
-      { name: "Moody Lee", title: "School President", sig: "" },
+      { name: "Moody Lee", title: "School President", sig: "cert/sig-president.png" },
     ],
-    citations: {
-      "English Token Award (Gold)": "for achieving a 100% token score",
-      "English Token Award (Silver)": "for achieving a token score above 98%",
-      "English Token Award (Bronze)": "for achieving a token score above 95%",
-      "Honours & High Honours": "for outstanding academic results",
-      "Core Values": "for living out the school's core values",
-      "PTL Awards": "for being an outstanding role model",
-    },
-    typeCitations: {
-      "Certificate of Achievement": "for outstanding achievement",
-      "Certificate of Recognition": "in recognition of outstanding effort and achievement",
-      "Certificate of Participation": "for active and enthusiastic participation",
-      "Certificate of Distinction": "for distinguished achievement",
-      "Teacher Award": "in recognition of excellence",
+    templates: {
+      default: { intro: "is awarded to", lead: "for" },
+      "Honours & High Honours": { type: "Achievement", lead: "for exemplary academic performance achieving" },
+      "Top Students": { type: "Distinction", lead: "for being the", title: "Top Student" },
+      "Outstanding Student": { title: "Outstanding Student" },
+      "Excellent Behaviour": { title: "Excellent Behaviour" },
+      "Core Values": { intro: "hereby recognizes that", lead: "through sustained demonstration of exemplary character is the worthy recipient of the",
+        title: "Core Value Award", awardStyle: "blue", levelStyle: "green" },
+      PDE: { intro: "hereby recognizes that", lead: "is a worthy recipient of the" },
+      "Purpose-Driven Education Goal Master Award": { after: "for consistently achieving their goals." },
+      "Purpose-Driven Education Excellence Award": { after: "for exceptional progress towards their goals." },
+      "Purpose-Driven Education Resilience Award": { after: "for perseverance through repeated challenges." },
+      "Subject Teacher Award": { type: "Recognition" },
+      "English Token": { type: "Recognition", title: "English Token Award",
+        afterByLevel: { Gold: "for achieving a 100% token score.", Silver: "for achieving a token score above 98%.", Bronze: "for achieving a token score above 95%." } },
+      "Green Cards": { theme: "green", type: "Recognition",
+        afterByLevel: { Bronze: "for gaining 25 Green Merits for excellent achievements in school work and behaviour",
+          Silver: "for gaining 50 Green Merits for excellent achievements in school work and behaviour",
+          Gold: "for gaining 75 Green Merits for excellent achievements in school work and behaviour",
+          Platinum: "for gaining 150 Green Merits for excellent achievements in school work and behaviour" } },
     },
   },
   // Division heads: review their grades (marks, comments, awards) and give the report card
