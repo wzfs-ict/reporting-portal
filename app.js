@@ -1189,10 +1189,13 @@ function gradeChecks(g) {
   const rows = S.marks[g] || [];
   const classes = groupClasses(rows);
   const seen = new Map(), dupes = [];
-  for (const r of rows) { const k = r.f.StudentID + "|" + r.f.Subject; if (seen.has(k) && seen.get(k) !== r.by) dupes.push(r); else seen.set(k, r.by); }
+  for (const r of rows) { const k = r.f.StudentID + "|" + r.f.Subject; if (seen.has(k) && seen.get(k).by !== r.by) dupes.push([seen.get(k), r]); else seen.set(k, r); }
+  // Grouped for the badge: "ICT: Teacher A + Teacher B (20 bobaes)".
+  const dupGroups = Object.values(dupes.reduce((m, [a, b]) => { const t = [a.byName || a.f.TeacherName, b.byName || b.f.TeacherName].sort().join(" + "), k = a.f.Subject + "|" + t;
+    (m[k] = m[k] || { subject: a.f.Subject, teachers: t, names: [] }).names.push(a.f.CalledName || a.f.FullName); return m; }, {}));
   const notInRoster = rows.filter((r) => !studentById(r.f.StudentID));
   return { rows: rows.length, missing: rows.filter((r) => blank(r.f.Score) || blank(r.f.Behaviour)).length,
-    open: classes.filter((c) => !c.submitted), classes: classes.length, dupes, notInRoster,
+    open: classes.filter((c) => !c.submitted), classes: classes.length, dupes, dupGroups, notInRoster,
     comments: rosterFor(g).filter((s) => S.comments.some((c) => c.f.StudentID === s.f.Title && c.f.Grade === g && (c.f.Comment || "").trim())).length };
 }
 function download(wb, name) { XLSX.writeFile(wb, name); }
@@ -1256,7 +1259,9 @@ function viewExport(main) {
       <tbody>${rows.map(({ g, c, n, certs, pts, ready, ok, approved, changed }) => `
         <tr><td><b>${esc(g)}</b><div class="small muted">${esc(advisorName(g))}</div></td><td class="num">${n}</td>
           <td class="small">${!c.classes ? `<span class="badge">No classes yet</span>` : c.open.length ? `<span class="badge warn">${c.classes - c.open.length} of ${c.classes} subjects in</span><div class="muted">Waiting: ${c.open.map((x) => esc(x.subject)).join(", ")}</div>` : `<span class="badge ok">All ${c.classes} subjects in</span>`}
-            ${c.missing ? `<div><span class="badge warn">${c.missing} blank marks</span></div>` : ""}${c.dupes.length ? `<div><span class="badge bad">${c.dupes.length} duplicate subject rows</span></div>` : ""}</td>
+            ${c.missing ? `<div><span class="badge warn">${c.missing} blank marks</span></div>` : ""}${c.dupes.length ? `<details><summary><span class="badge bad">${c.dupes.length} duplicate subject rows</span></summary>
+              <div class="muted">Same bobae in the same subject under two teachers. One teacher should open the class and remove them (or use "Delete this class").</div>
+              ${c.dupGroups.map((d) => `<div><b>${esc(d.subject)}</b>: ${esc(d.teachers)} · ${d.names.length} bobae${d.names.length > 1 ? "s" : ""} <span class="muted">(${esc(d.names.slice(0, 6).join(", "))}${d.names.length > 6 ? "…" : ""})</span></div>`).join("")}</details>` : ""}</td>
           <td class="num">${c.comments === n ? `<span class="badge ok">${c.comments} / ${n}</span>` : `${c.comments} / ${n}`}</td>
           <td class="small">${certs} certificates<div class="muted">${pts} service points</div></td>
           <td>${ready ? `<span class="badge ok">Ready</span>` : `<span class="badge warn">Not complete</span>`}
