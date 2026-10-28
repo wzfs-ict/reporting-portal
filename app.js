@@ -227,6 +227,8 @@ function tabsFor() {
   // Admin team members who don't teach (Ryan, Peter, Keating…) only need report cards.
   const teaches = isAdmin() || (P().staff || []).map(lc).includes(S.me) || advisorGrades().length > 0;
   if (isLibrarian() && !teaches && !isReportTeam()) return [["certs", "Certificates"], ["help", "Help"]];
+  // Leadership who don't teach (Chairman, Vice President): a read-only school dashboard, no advisor tools.
+  if (isLeader() && !teaches && !isPrincipal() && !isReportTeam() && !headGrades().length) return [["review", "Dashboard"], ["pde", "PDE (in progress)"], ["help", "Help"]];
   if (isReportTeam() && !teaches) return [["export", "Report cards"], ["certs", "Certificates"], ...(viewGrades().length ? [["advisor", "Advisor view"]] : []), ["help", "Help"]];
   const t = [["classes", "My classes"], ["awards", "Awards"]];
   if (reviewGrades().length) t.unshift(["review", canApprove() ? "Principal review" : `Review (${reviewGrades()[0]}–${reviewGrades().slice(-1)[0]})`]);
@@ -747,13 +749,16 @@ function approvalBadge(s) {
   return `<span class="badge ok">Go-ahead ✓</span><div class="small muted">${esc(s.ok.byName)}, ${esc(s.ok.at.slice(0, 10))}</div>${s.changed ? `<div><span class="badge warn">Changed since</span></div>` : ""}`;
 }
 function viewReview(main) {
-  const grades = reviewGrades().filter((g) => rosterFor(g).length);
+  // Leaders without approval rights see the same page as a read-only dashboard of every grade.
+  const dash = !reviewGrades().length && isLeader();
+  const grades = (dash ? P().grades : reviewGrades()).filter((g) => rosterFor(g).length);
   const sums = grades.map(gradeSummary);
   const g = grades.includes(S.revGrade) ? S.revGrade : "";
   const scale = (v) => (blank(v) ? "–" : esc(v));
   main.innerHTML = `
-    <h1>${canApprove() ? "Principal review" : `Review: ${esc(grades[0] || "")}–${esc(grades[grades.length - 1] || "")}`}</h1>
-    <p class="lede"><span class="badge info">${esc(termLabel())}</span> ${canApprove() ? "Every grade’s" : "Your grades’"} marks, behaviour, comments and awards in one place. Check them, then give the go-ahead so the Admin team can generate the report cards.</p>
+    <h1>${dash ? "School dashboard" : canApprove() ? "Principal review" : `Review: ${esc(grades[0] || "")}–${esc(grades[grades.length - 1] || "")}`}</h1>
+    <p class="lede"><span class="badge info">${esc(termLabel())}</span> ${dash ? "Every grade’s progress: subjects in, marks, comments, awards and concerns. Read only; click Review to see a grade’s bobaes."
+      : `${canApprove() ? "Every grade’s" : "Your grades’"} marks, behaviour, comments and awards in one place. Check them, then give the go-ahead so the Admin team can generate the report cards.`}</p>
     <div id="flash"></div>
     ${isMidterm() ? notice("warn", "This is the <b>Midterm</b> period: progress only. Report cards are made at the <b>Final</b>, so the go-ahead opens then.") : ""}
     <div class="stats">
@@ -780,8 +785,8 @@ function viewReview(main) {
     const order = (r) => { const x = S.subjects.find((s) => s.f.Grade === g && s.f.Title === r.f.Subject); return x ? (x.f.SortOrder ?? 999) : 999; };
     $("#revDetail").innerHTML = `
       <div class="row" style="align-items:center;margin-top:18px"><h2 style="margin:0">${esc(g)} · ${esc(advisorName(g))}</h2>
-        <button class="btn small" id="revEdit" style="margin-left:auto">${canAdvise(g) ? "Correct marks in the Advisor view →" : "Open the Advisor view →"}</button></div>
-      <p class="small muted">Score / behaviour for each subject (hover for the teacher’s remark). Comments save when you leave the box.</p>
+        ${tabsFor().some(([k]) => k === "advisor") ? `<button class="btn small" id="revEdit" style="margin-left:auto">${canAdvise(g) ? "Correct marks in the Advisor view →" : "Open the Advisor view →"}</button>` : ""}</div>
+      <p class="small muted">Score / behaviour for each subject (hover for the teacher’s remark).${canAdvise(g) ? " Comments save when you leave the box." : ""}</p>
       <div class="table-wrap"><table>
         <thead><tr><th style="width:200px">Bobae</th><th>Marks</th><th style="width:34%">Advisor comment</th><th>Awards</th><th></th></tr></thead>
         <tbody>${rosterFor(g).map((st) => { const id = st.f.Title;
@@ -793,7 +798,7 @@ function viewReview(main) {
             <td><textarea class="cmt" rows="3" maxlength="1200" ${canAdvise(g) ? "" : "disabled"}>${esc(cm?.f.Comment || "")}</textarea></td>
             <td class="small">${aw.map((a) => esc(a.f.AwardName) + (a.f.Points ? ` (${esc(a.f.Points)})` : "")).join("<br>") || `<span class="muted">–</span>`}</td>
             <td class="rowstate"></td></tr>`; }).join("")}</tbody></table></div>`;
-    $("#revEdit").onclick = () => { S.advGrade = g; go("advisor"); };
+    const re = $("#revEdit"); if (re) re.onclick = () => { S.advGrade = g; go("advisor"); };
     for (const tr of $$("#revDetail tr[data-sid]")) { const ta = $(".cmt", tr); ta.onchange = () => saveComment(g, tr.dataset.sid, ta.value, $(".rowstate", tr)); }
   }
   $$("[data-rev]").forEach((b) => (b.onclick = () => { S.revGrade = S.revGrade === b.dataset.rev ? "" : b.dataset.rev; render(); if (S.revGrade) $("#revDetail").scrollIntoView({ behavior: "smooth" }); }));
