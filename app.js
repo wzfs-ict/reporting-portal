@@ -529,7 +529,7 @@ function viewEntry(main) {
       <thead><tr><th>#</th><th>Student</th><th class="num">Score <span class="small muted">(Schoology score)</span></th><th>Behaviour</th><th>Remark (optional, max ${P().remarkMaxLength})</th><th class="center" title="Flag a concern for the advisor">⚑ Flag</th><th></th>${editable && (mine || isAdmin()) ? "<th></th>" : ""}</tr></thead>
       <tbody>
       ${rows.map((r, i) => `
-        <tr data-id="${r.id}">
+        <tr data-i="${i}">
           <td class="muted">${i + 1}</td>
           <td><div class="who-cell">${photo(r.f.StudentID, 32)}<div><b>${esc(r.f.CalledName || r.f.FullName)}</b>${r.list !== grade ? ` <span class="badge info" title="Belongs to ${esc(r.list)}; this mark goes on their ${esc(r.list)} report card">${esc(r.list)}</span>` : ""}<div class="small muted">${esc(r.f.FullName)} · ${esc(r.f.StudentID)}</div></div></div></td>
           <td class="num"><input class="score" inputmode="decimal" autocomplete="off" value="${blank(r.f.Score) ? "" : esc(r.f.Score)}" ${rowEditable(r) ? "" : "disabled"} aria-label="Score for ${esc(r.f.FullName)}"></td>
@@ -558,8 +558,10 @@ function viewEntry(main) {
     $("#progress").textContent = `${n} of ${rows.length} complete · saves automatically`;
   };
   progress();
-  for (const tr of $$("tbody tr[data-id]", main)) {
-    const r = rows.find((x) => x.id === tr.dataset.id);
+  // Rows are matched by position, never by item id alone: guests' rows live in other grade lists, and item ids
+  // repeat across lists (G3 #41 and G4 #41 are different bobaes).
+  for (const tr of $$("tbody tr[data-i]", main)) {
+    const r = rows[Number(tr.dataset.i)];
     const state = $(".rowstate", tr);
     const save = async (fields) => {
       state.className = "rowstate"; state.textContent = "Saving…";
