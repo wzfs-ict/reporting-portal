@@ -1372,6 +1372,57 @@ async function upsert(listName, records, keyOf, existing) {
   return { sent: reqs.length, failed: batchFailures(res) };
 }
 
+// ── Health check & snapshot (Setup) ──
+// Checks run on the data already loaded (no extra requests); the recycle bin and the snapshot are fetched on click.
+function healthChecks() {
+  const rows = allMarks(), ids = new Set(S.students.map((s) => s.f.Title));
+  const orphans = [...rows, ...S.awards, ...S.comments].filter((r) => r.f.StudentID && !ids.has(r.f.StudentID));
+  const badScore = rows.filter((r) => !blank(r.f.Score) && (Number(r.f.Score) < 0 || Number(r.f.Score) > 100));
+  const dupes = P().grades.reduce((n, g) => n + gradeChecks(g).dupes.length, 0);
+  const noPhoto = S.students.filter((s) => !(S.photos || {})[s.f.Title]);
+  return { rows: rows.length, filled: rows.filter((r) => !blank(r.f.Score)).length, orphans, badScore, dupes, noPhoto };
+}
+function healthCard() {
+  const h = healthChecks(), ok = (n) => (n ? `<span class="badge bad">${n}</span>` : `<span class="badge ok">0</span>`);
+  return `<div class="card"><h3>Health check &amp; snapshot</h3>
+    <p class="small">${esc(termLabel())}: <b>${h.rows}</b> marks rows, <b>${h.filled}</b> with a score · ${S.students.length} bobaes · ${S.awards.length} awards · ${S.comments.length} comments</p>
+    <div class="table-wrap"><table class="small"><tbody>
+      <tr><td>Rows whose Student ID isn't in the roster (old ID or removed bobae)</td><td class="num">${ok(h.orphans.length)}</td></tr>
+      <tr><td>Scores outside 0–100</td><td class="num">${ok(h.badScore.length)}</td></tr>
+      <tr><td>Duplicate subject rows (same bobae, subject and level, two teachers)</td><td class="num">${ok(h.dupes)}</td></tr>
+      <tr><td>Bobaes without a photo</td><td class="num">${h.noPhoto.length ? `<span class="badge warn" title="${esc(h.noPhoto.map((s) => s.f.FullName).join(", "))}">${h.noPhoto.length}</span>` : `<span class="badge ok">0</span>`}</td></tr>
+      <tr><td>Deleted in the last 7 days (recycle bin, restorable for 93 days)</td><td class="num" id="hcBin"><button class="btn small" id="hcBinBtn">Check</button></td></tr>
+    </tbody></table></div>
+    ${h.orphans.length ? `<details class="small"><summary>Show rows with an unknown Student ID</summary>${h.orphans.slice(0, 40).map((r) => `<div>${esc(r.f.StudentID)} · ${esc(r.f.FullName || r.f.CalledName || "")} · ${esc(r.f.Subject || r.f.AwardName || "comment")} (${esc(r.byName)})</div>`).join("")}</details>` : ""}
+    <p style="margin-top:10px"><button class="btn primary" id="hcSnap">Download snapshot (Excel)</button>
+      <span class="small muted">All marks (every period), comments, awards and the roster in one file. Take one before switching Midterm → Final, before generating report cards, and before any import. Save it in OneDrive: <code>Report_Card\\Snapshots</code>.</span></p>
+  </div>`;
+}
+function wireHealth() {
+  const bb = $("#hcBinBtn"); if (bb) bb.onclick = async () => {
+    bb.disabled = true; bb.textContent = "Checking…";
+    try {
+      const since = Date.now() - 7 * 864e5;
+      const j = await sp("GET", "web/RecycleBin?$select=DeletedDate,DeletedByName&$top=2000");
+      const by = (j.value || []).filter((x) => new Date(x.DeletedDate) >= since).reduce((m, x) => ((m[x.DeletedByName] = (m[x.DeletedByName] || 0) + 1), m), {});
+      $("#hcBin").innerHTML = Object.keys(by).length ? Object.entries(by).map(([n, c]) => `<div>${esc(n)}: <b>${c}</b></div>`).join("") : `<span class="badge ok">0</span>`;
+    } catch (e) { $("#hcBin").textContent = "Couldn't read the recycle bin: " + e.message; }
+  };
+  const sb = $("#hcSnap"); if (sb) sb.onclick = async () => {
+    sb.disabled = true; sb.textContent = "Collecting…";
+    try {
+      await loadXlsx();
+      const marks = (await Promise.all(P().grades.map(async (g) => (await readList(marksListName(g))).map((r) => ({ List: g, ...r.f, CreatedBy: r.byName, Modified: r.modified })))) ).flat();
+      const plain = (items) => items.map((r) => ({ ...r.f, CreatedBy: r.byName, Modified: r.modified }));
+      const wb = XLSX.utils.book_new(), add = (rows, name) => XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.map((r) => Object.fromEntries(Object.entries(r).filter(([k]) => !/^(@odata|_|LinkTitle|ContentType|Edit|Attachments|AppAuthor|AppEditor|ItemChildCount|FolderChildCount|ComplianceAsset)/.test(k))))), name);
+      add(marks, "Marks"); add(plain(await readList(L.comments)), "Comments"); add(plain(await readList(L.awards)), "Awards"); add(plain(S.students), "Students");
+      const d = new Date(), stamp = `${d.toISOString().slice(0, 10)}_${String(d.getHours()).padStart(2, "0")}${String(d.getMinutes()).padStart(2, "0")}`;
+      download(wb, `WZFS_Snapshot_${P().semester}${P().academicYear.slice(0, 4)}_${stamp}.xlsx`);
+      flash("ok", `Snapshot saved: ${marks.length} marks rows. Move it from Downloads to OneDrive → Report_Card\\Snapshots.`);
+    } catch (e) { flash("error", "Snapshot failed: " + e.message); }
+    sb.disabled = false; sb.textContent = "Download snapshot (Excel)";
+  };
+}
 function viewSetup(main) {
   const specs = listSpecs();
   const missing = specs.filter((s) => !S.lists[s.name]);
@@ -1380,6 +1431,7 @@ function viewSetup(main) {
     <h1>Setup</h1>
     <p class="lede">For ICT only. Work through the steps in order. Running a step again is safe.</p>
     <div id="flash"></div>
+    ${healthCard()}
 
     <div class="card"><h3>1 · SharePoint lists</h3>
       <p class="small">${specs.length - missing.length} of ${specs.length} lists exist on <a href="${esc(S.siteUrl)}" target="_blank" rel="noopener">${esc(S.siteUrl)}</a>.</p>
@@ -1462,6 +1514,7 @@ function viewSetup(main) {
       <p class="small">Signed in as <code>${esc(S.me)}</code> · site <code>${esc(S.siteId)}</code></p>
     </div>`;
 
+  wireHealth();
   $("#createLists").onclick = async () => {
     $("#createLists").disabled = true; const log = $("#createLog"); log.textContent = "";
     for (const s of missing) {
