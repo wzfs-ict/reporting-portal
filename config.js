@@ -76,12 +76,8 @@ window.APP_CONFIG = {
   // At Midterm only these award categories can be given; everything else waits for the Final.
   midtermAwardCategories: ["Honours & High Honours"],
   // Subject changes waiting to be applied (Setup → card 5 → Apply). Each shows "done" once the live list matches;
-  // remove entries after they're applied. A rename also moves every mark row (all periods) to the new name.
+  // remove entries after they're applied. AS/A2 Maths names wait for Bijily (maths head). A rename also moves every mark row (all periods) to the new name.
   pendingSubjectChanges: [
-    { grade: "G11", rename: "AS Maths (Pure Math 1 and Mechanics)", to: "AS Maths (Pure Math 1 & Probability and Statistics 1)", why: "Beverly: Mechanics replaced by P&S 1" },
-    { grade: "G11", rename: "A2 Maths", to: "A2 Maths (Pure Math 3 & Probability and Statistics 1)", why: "Beverly; covers Michael's P&S 1" },
-    { grade: "G12", rename: "AS Maths", to: "AS Maths (Pure Math 1 & Probability and Statistics 1)", why: "Beverly; covers Michael's P&S 1" },
-    { grade: "G12", rename: "A2 Maths", to: "A2 Maths (Pure Math 3 & Probability and Statistics 1)", why: "Beverly; covers Michael's Pure Maths 3 and P&S 1" },
     { grade: "G11", hide: "A2 Business Studies", why: "Beverly: no A2 Business this year" },
     { grade: "G12", hide: "A2 Business Studies", why: "Beverly: no A2 Business this year" },
     ...["G1", "G2", "G3", "G4", "G5", "ZSA"].map((grade) => ({ grade, add: "Elective (Science Investigations)", type: "II", why: "Whole school" })),
