@@ -74,7 +74,15 @@ window.APP_CONFIG = {
     ptcSubjects: ["Chinese", "English", "Maths", "Science", "Accelerate English", "Accelerated English"],
   },
   // At Midterm only these award categories can be given; everything else waits for the Final.
-  midtermAwardCategories: ["Honours & High Honours", "PTL Awards"],
+  midtermAwardCategories: ["Honours & High Honours"],
+  // Award categories only these people (and admins) can give. Everyone else doesn't see the category.
+  awardCategoryGivers: {
+    "PTL Awards": [
+      "asumeg-ang@zhongshischool.org",   // Arsenio Sumeg-ang, Principal
+      "rrussell@zhongshischool.org",     // Roger Russell
+      "babuan@zhongshischool.org",       // Beverly Abuan
+    ],
+  },
   // Printed certificates (Certificates tab → Print certificates), in the library's Canva house style:
   //   This · CERTIFICATE of <type> · <intro> · NAME · <lead> · AWARD · -LEVEL- · <after> · Semester, School Year · Conferred …
   // Templates are matched by award name first, then category, then "default". The level comes from the award name,

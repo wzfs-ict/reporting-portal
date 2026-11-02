@@ -1020,11 +1020,14 @@ const seasonLabel = (s) => (s === "Fall" || s === "Spring" ? s : "All year");
 // Advisor-only awards (criteria document): only the bobae's grade advisor / co-advisor, or an admin, may give them.
 const advisorOnly = (c) => c && c.f.GivenBy === "Advisors";
 const mayGive = (c, grade) => !advisorOnly(c) || isAdmin() || advisorEmails(grade).includes(S.me);
+// Categories kept to named people (config awardCategoryGivers, e.g. PTL Awards). null = anyone may give.
+const catGivers = (cat) => { const m = P().awardCategoryGivers || {}, k = Object.keys(m).find((x) => lc(x) === lc(cat)); return k ? m[k].map(lc) : null; };
+const mayGiveCat = (cat, who = S.me) => { const g = catGivers(cat); return !g || g.includes(who) || P().admins.map(lc).includes(who); };
 // Categories offered: every grade sees them all (teachers choose); at Midterm only the midterm ones
-// (config midtermAwardCategories: Honours & High Honours, PTL Awards).
+// (config midtermAwardCategories: Honours & High Honours). Restricted categories only for their givers.
 function awardCategoriesFor() {
   const mid = isMidterm() ? (P().midtermAwardCategories || []).map(lc) : null;
-  return [...new Set(S.catalogue.map((c) => c.f.Category).filter(Boolean))].filter((c) => !mid || mid.includes(lc(c)));
+  return [...new Set(S.catalogue.map((c) => c.f.Category).filter(Boolean))].filter((c) => (!mid || mid.includes(lc(c))) && mayGiveCat(c));
 }
 // Awards whose name already says "(Midterm)" or "(Finals)" only show in that period.
 const periodTagged = (c) => /\((midterm|finals?)\)\s*$/i.test(c.f.Title || "");
@@ -1141,6 +1144,7 @@ function viewAwards(main) {
   $("#awSave").onclick = async () => {
     const c = current(); if (!c) return;
     if ([...S.awSel].some((id) => !mayGive(c, studentById(id)?.f.Grade))) return flash("warn", "This award can only be given by the bobae's advisor or co-advisor.");
+    if (!mayGiveCat(c.f.Category)) return flash("warn", `${c.f.Category} can only be given by ${catGivers(c.f.Category).map(nameOf).join(", ")}.`);
     // What prints on the report card: the teacher's own title, or "Award – Month", or the catalogue name.
     // Midterm awards are marked "(Midterm)" so they're told apart from the Final ones (unless the name already says so).
     const awardName = (c.f.CustomTitle ? $("#awTitle").value.replace(/\s+/g, " ").trim() : c.f.AskMonth ? `${c.f.Title} – ${$("#awMonth").value}` : c.f.Title)
@@ -1249,6 +1253,7 @@ function viewExport(main) {
   const readyCount = rows.filter((r) => r.ready).length;
   const restricted = new Set(teacherCatalogue().filter(advisorOnly).map((c) => lc(c.f.Category + "|" + c.f.Title)));
   const odd = S.awards.filter((a) => restricted.has(lc(a.f.Category + "|" + a.f.AwardName)) && !advisorEmails(a.f.Grade).includes(a.by) && !P().admins.map(lc).includes(a.by));
+  const offCat = S.awards.filter((a) => !mayGiveCat(a.f.Category, a.by));
   const byCat = Object.entries(S.awards.reduce((m, a) => ((m[a.f.Category || "Other"] = (m[a.f.Category || "Other"] || 0) + 1), m), {})).sort((a, b) => b[1] - a[1]);
   main.innerHTML = `
     <h1>Report cards</h1>
@@ -1285,6 +1290,8 @@ function viewExport(main) {
       </tbody></table></div>
     ${odd.length ? notice("warn", `${odd.length} advisor-only award${odd.length > 1 ? "s were" : " was"} saved by someone who isn't that grade's advisor: `
       + odd.slice(0, 8).map((a) => `${esc(a.f.CalledName || a.f.FullName)} (${esc(a.f.Grade)}): ${esc(a.f.AwardName)}, by ${esc(a.byName || a.f.AwardedBy)}`).join("; ") + (odd.length > 8 ? "…" : "") + ". Check with the advisor before printing.") : ""}
+    ${offCat.length ? notice("warn", `${offCat.length} award${offCat.length > 1 ? "s were" : " was"} saved in a category kept to named people (e.g. PTL Awards) by someone else: `
+      + offCat.slice(0, 8).map((a) => `${esc(a.f.CalledName || a.f.FullName)} (${esc(a.f.Grade)}): ${esc(a.f.AwardName)}, by ${esc(a.byName || a.f.AwardedBy)}`).join("; ") + (offCat.length > 8 ? "…" : "") + ". Check before printing; an admin can delete them on the Awards tab.") : ""}
     <details class="card"><summary>Awards collected this semester: ${S.awards.length} in ${byCat.length} categories</summary>
       <div class="table-wrap" style="margin-top:10px;max-width:520px"><table><thead><tr><th>Category</th><th class="num">Given</th></tr></thead><tbody>
         ${byCat.map(([k, v]) => `<tr><td>${esc(k)}</td><td class="num">${v}</td></tr>`).join("") || `<tr><td colspan="2" class="muted">None yet.</td></tr>`}
