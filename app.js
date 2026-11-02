@@ -1291,7 +1291,7 @@ function viewExport(main) {
     ${odd.length ? notice("warn", `${odd.length} advisor-only award${odd.length > 1 ? "s were" : " was"} saved by someone who isn't that grade's advisor: `
       + odd.slice(0, 8).map((a) => `${esc(a.f.CalledName || a.f.FullName)} (${esc(a.f.Grade)}): ${esc(a.f.AwardName)}, by ${esc(a.byName || a.f.AwardedBy)}`).join("; ") + (odd.length > 8 ? "…" : "") + ". Check with the advisor before printing.") : ""}
     ${offCat.length ? notice("warn", `${offCat.length} award${offCat.length > 1 ? "s were" : " was"} saved in a category kept to named people (e.g. PTL Awards) by someone else: `
-      + offCat.slice(0, 8).map((a) => `${esc(a.f.CalledName || a.f.FullName)} (${esc(a.f.Grade)}): ${esc(a.f.AwardName)}, by ${esc(a.byName || a.f.AwardedBy)}`).join("; ") + (offCat.length > 8 ? "…" : "") + ". Check before printing; an admin can delete them on the Awards tab.") : ""}
+      + offCat.slice(0, 8).map((a) => `${esc(a.f.CalledName || a.f.FullName)} (${esc(a.f.Grade)}): ${esc(a.f.AwardName)}, by ${esc(a.byName || a.f.AwardedBy)}`).join("; ") + (offCat.length > 8 ? "…" : "") + ". Check before printing.") + (isAdmin() ? `<p><button class="btn small danger" id="delOffCat">Delete these ${offCat.length}</button></p>` : "") : ""}
     <details class="card"><summary>Awards collected this semester: ${S.awards.length} in ${byCat.length} categories</summary>
       <div class="table-wrap" style="margin-top:10px;max-width:520px"><table><thead><tr><th>Category</th><th class="num">Given</th></tr></thead><tbody>
         ${byCat.map(([k, v]) => `<tr><td>${esc(k)}</td><td class="num">${v}</td></tr>`).join("") || `<tr><td colspan="2" class="muted">None yet.</td></tr>`}
@@ -1311,6 +1311,12 @@ function viewExport(main) {
     catch (err) { flash("error", "Couldn't read the attendance file: " + err.message); }
   };
   const ac = $("#attClear"); if (ac) ac.onclick = () => { S.attendance = null; render(); };
+  if ($("#delOffCat")) $("#delOffCat").onclick = async () => {
+    if (!confirm(`Delete ${offCat.length} award${offCat.length > 1 ? "s" : ""} given by people who can't give that category?\n\nThey can be restored from the SharePoint recycle bin for 93 days.`)) return;
+    const bad = batchFailures(await batch(offCat.map((a) => ({ method: "DELETE", url: `${itemsUrl(L.awards)}/${a.id}` }))));
+    await loadAwards(); render();
+    flash(bad.length ? "error" : "ok", bad.length ? `${bad.length} could not be deleted.` : `Deleted ${offCat.length}.`);
+  };
   $$("[data-gen]").forEach((b) => (b.onclick = () => {
     const r = rows.find((x) => x.g === b.dataset.gen);
     if (!r.ready && !confirm(`${r.g} isn't complete yet${r.c.open.length ? ` (waiting for ${r.c.open.length} subject${r.c.open.length > 1 ? "s" : ""})` : ""}. Generate a check copy anyway?`)) return;
@@ -1508,6 +1514,7 @@ function viewSetup(main) {
         <label style="max-width:150px"><span>Grade</span><select id="mgGrade">${p.grades.map((g) => `<option ${g === S.mgGrade ? "selected" : ""}>${esc(g)}</option>`).join("")}</select></label>
       </div>
       <div id="mgSubjects"></div>
+      <div id="mgPlanned"></div>
       <h3 style="margin-top:16px">Award catalogue</h3>
       <div class="row" style="margin-bottom:8px">
         <label style="max-width:260px"><span>Category</span><select id="mcCat"></select></label>
@@ -1662,6 +1669,26 @@ function viewSetup(main) {
   bindPdeSetup();
 }
 
+// Rename a subject in one grade: moves every mark row (all periods, every grade list, so guests too) whose class is
+// in that grade, then renames the Subjects row (or hides it if the new name already exists). Versioning keeps the old values.
+// A row is left alone if the same bobae already has the new subject at the same level in the same period (it would duplicate).
+async function renameSubject(g, from, to) {
+  const all = (await Promise.all(P().grades.filter((x) => S.lists[marksListName(x)])
+    .map(async (x) => (await readList(marksListName(x))).map((r) => ({ ...r, list: x }))))).flat().filter((r) => classGradeOf(r) === g);
+  const key = (r) => [r.f.StudentID, lc(r.f.ClassLevel), r.f.AcademicYear, r.f.Semester, r.f.Period].join("|");
+  const have = new Set(all.filter((r) => r.f.Subject === to).map(key));
+  const rows = all.filter((r) => r.f.Subject === from), move = rows.filter((r) => !have.has(key(r)));
+  const res = await batch(move.map((r) => ({ method: "PATCH", url: `${itemsUrl(marksListName(r.list))}/${r.id}/fields`, body: { Subject: to } })));
+  const failed = batchFailures(res).length;
+  const src = S.subjects.find((s) => s.f.Grade === g && s.f.Title === from), dst = S.subjects.find((s) => s.f.Grade === g && lc(s.f.Title) === lc(to));
+  if (src && !dst) { await graph("PATCH", `${itemsUrl(L.subjects)}/${src.id}/fields`, { Title: to }); src.f.Title = to; }
+  else if (src && dst) {
+    await graph("PATCH", `${itemsUrl(L.subjects)}/${src.id}/fields`, { PrintsOnCard: false }); src.f.PrintsOnCard = false;
+    if (dst.f.PrintsOnCard === false) { await graph("PATCH", `${itemsUrl(L.subjects)}/${dst.id}/fields`, { PrintsOnCard: true }); dst.f.PrintsOnCard = true; }
+  }
+  await loadMarks();
+  return { moved: move.length - failed, failed, clash: rows.length - move.length };
+}
 // Setup step 5: maintain subjects and the award catalogue in place.
 function bindYearTools() {
   const p = P();
@@ -1670,10 +1697,11 @@ function bindYearTools() {
     const g = S.mgGrade;
     const list = S.subjects.filter((s) => s.f.Grade === g);
     $("#mgSubjects").innerHTML = `
-      <div class="table-wrap"><table><thead><tr><th>Subject</th><th>Type</th><th class="center">Shown to teachers</th></tr></thead><tbody>
+      <div class="table-wrap"><table><thead><tr><th>Subject</th><th>Type</th><th class="center">Shown to teachers</th><th></th></tr></thead><tbody>
         ${list.map((s) => `<tr><td>${esc(s.f.Title)}</td><td><select data-stype="${s.id}" style="width:190px"><option value="I">I · academic</option><option value="II" ${s.f.SubjectType === "II" ? "selected" : ""}>II · extracurricular</option></select></td>
-          <td class="center"><input type="checkbox" data-subj="${s.id}" ${s.f.PrintsOnCard !== false ? "checked" : ""}></td></tr>`).join("")
-          || `<tr><td colspan="3" class="muted">No subjects for ${esc(g)} yet.</td></tr>`}
+          <td class="center"><input type="checkbox" data-subj="${s.id}" ${s.f.PrintsOnCard !== false ? "checked" : ""}></td>
+          <td><button class="btn small" data-ren="${s.id}">Rename</button></td></tr>`).join("")
+          || `<tr><td colspan="4" class="muted">No subjects for ${esc(g)} yet.</td></tr>`}
       </tbody></table></div>
       <div class="row">
         <label style="flex:1;min-width:200px"><span>New subject or elective for ${esc(g)}</span><input id="nsName" maxlength="80" placeholder="e.g. Elective (Robotics)"></label>
@@ -1696,6 +1724,64 @@ function bindYearTools() {
           SortOrder: Math.max(0, ...S.subjects.map((s) => s.f.SortOrder || 0)) + 1 } });
         S.subjects.push(norm(it)); drawSubjects(); flash("ok", `Added "${name}" to ${g}.`);
       } catch (e) { flash("error", e.message); }
+    };
+    $$("[data-ren]").forEach((b) => (b.onclick = async () => {
+      const from = S.subjects.find((s) => s.id === b.dataset.ren).f.Title;
+      const to = (prompt(`Rename ${g} "${from}" to:\n\nEvery class and mark under the old name (all periods) moves to the new name. The report card prints the new name.`, from) || "").replace(/\s+/g, " ").trim();
+      if (!to || to === from) return;
+      await runRename(g, from, to);
+    }));
+    drawPlanned();
+  };
+  const runRename = async (g, from, to) => {
+    flash("", `Renaming ${g} "${from}"… reading every marks list.`);
+    try {
+      const r = await renameSubject(g, from, to);
+      drawSubjects();
+      flash(r.failed || r.clash ? "warn" : "ok", `${g}: "${from}" → "${to}". ${r.moved} mark row${r.moved === 1 ? "" : "s"} moved`
+        + (r.failed ? `, ${r.failed} failed (try again)` : "") + (r.clash ? `, ${r.clash} left under the old name because the bobae already has a "${to}" row (check them on the Health check)` : "") + ".");
+    } catch (e) { flash("error", e.message); }
+  };
+  // Planned changes from config (pendingSubjectChanges): status is read from the live Subjects list.
+  const drawPlanned = () => {
+    const plan = P().pendingSubjectChanges || [];
+    if (!plan.length) return ($("#mgPlanned").innerHTML = "");
+    const find = (g, n) => S.subjects.find((s) => s.f.Grade === g && lc(s.f.Title) === lc(n));
+    const shown = (x) => x && x.f.PrintsOnCard !== false;
+    const status = (c) => {
+      if (c.rename) { const a = find(c.grade, c.rename), b = find(c.grade, c.to); return shown(b) && !shown(a) ? "done" : a ? "todo" : "missing"; }
+      if (c.hide) return shown(find(c.grade, c.hide)) ? "todo" : "done";
+      return shown(find(c.grade, c.add)) ? "done" : "todo";
+    };
+    const what = (c) => c.rename ? `Rename “${esc(c.rename)}” → “${esc(c.to)}”` : c.hide ? `Hide “${esc(c.hide)}”` : `Add “${esc(c.add)}” (${esc(c.type || "I")})`;
+    const badge = { done: `<span class="badge ok">Done</span>`, todo: `<span class="badge warn">To do</span>`, missing: `<span class="badge">Old name not found</span>` };
+    const todo = plan.filter((c) => status(c) === "todo");
+    $("#mgPlanned").innerHTML = `
+      <h3 style="margin-top:16px">Planned subject changes</h3>
+      <p class="small muted">Requested by staff and set up by ICT. Renames move the marks too. "Old name not found" means the live list uses a different name: use Rename in the table above instead.</p>
+      <div class="table-wrap"><table><thead><tr><th>Grade</th><th>Change</th><th>Why</th><th></th></tr></thead><tbody>
+        ${plan.map((c) => `<tr><td>${esc(c.grade)}</td><td>${what(c)}</td><td class="small muted">${esc(c.why || "")}</td><td>${badge[status(c)]}</td></tr>`).join("")}
+      </tbody></table></div>
+      ${todo.length ? `<p><button class="btn primary" id="planApply">Apply ${todo.length} change${todo.length > 1 ? "s" : ""}</button></p>` : ""}`;
+    if (!todo.length) return;
+    $("#planApply").onclick = async () => {
+      if (!confirm(`Apply these ${todo.length} subject changes?\n\n${todo.map((c) => `${c.grade}: ${what(c).replace(/[“”]/g, '"')}`).join("\n")}\n\nTake a Snapshot first (Health check card) if you haven't today.`)) return;
+      $("#planApply").disabled = true;
+      const notes = []; let bad = false;
+      for (const c of todo) {
+        try {
+          if (c.rename) { const r = await renameSubject(c.grade, c.rename, c.to); bad ||= !!(r.failed || r.clash); notes.push(`${c.grade} ${c.to}: ${r.moved} mark rows moved${r.failed ? `, ${r.failed} failed` : ""}${r.clash ? `, ${r.clash} clashes` : ""}`); }
+          else if (c.hide) { const x = find(c.grade, c.hide); await graph("PATCH", `${itemsUrl(L.subjects)}/${x.id}/fields`, { PrintsOnCard: false }); x.f.PrintsOnCard = false; }
+          else {
+            const x = find(c.grade, c.add);
+            if (x) { await graph("PATCH", `${itemsUrl(L.subjects)}/${x.id}/fields`, { PrintsOnCard: true }); x.f.PrintsOnCard = true; }
+            else S.subjects.push(norm(await graph("POST", itemsUrl(L.subjects), { fields: { Title: c.add, Grade: c.grade, SubjectType: c.type || "I", PrintsOnCard: true,
+              SortOrder: Math.max(0, ...S.subjects.map((s) => s.f.SortOrder || 0)) + 1 } })));
+          }
+        } catch (e) { bad = true; notes.push(`${c.grade} ${c.rename || c.hide || c.add}: ${e.message}`); }
+      }
+      drawSubjects();
+      flash(bad ? "warn" : "", `Applied.${notes.length ? " " + notes.join("; ") : ""}`);
     };
   };
   $("#mgGrade").onchange = (e) => { S.mgGrade = e.target.value; drawSubjects(); };
