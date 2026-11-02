@@ -1671,17 +1671,24 @@ function viewSetup(main) {
 
 // Rename a subject in one grade: moves every mark row (all periods, every grade list, so guests too) whose class is
 // in that grade, then renames the Subjects row (or hides it if the new name already exists). Versioning keeps the old values.
+// With a level, only rows at that class level move and the level is cleared (a paper entered as a level becomes its own subject).
 // A row is left alone if the same bobae already has the new subject at the same level in the same period (it would duplicate).
-async function renameSubject(g, from, to) {
+async function renameSubject(g, from, to, level) {
   const all = (await Promise.all(P().grades.filter((x) => S.lists[marksListName(x)])
     .map(async (x) => (await readList(marksListName(x))).map((r) => ({ ...r, list: x }))))).flat().filter((r) => classGradeOf(r) === g);
-  const key = (r) => [r.f.StudentID, lc(r.f.ClassLevel), r.f.AcademicYear, r.f.Semester, r.f.Period].join("|");
-  const have = new Set(all.filter((r) => r.f.Subject === to).map(key));
-  const rows = all.filter((r) => r.f.Subject === from), move = rows.filter((r) => !have.has(key(r)));
-  const res = await batch(move.map((r) => ({ method: "PATCH", url: `${itemsUrl(marksListName(r.list))}/${r.id}/fields`, body: { Subject: to } })));
+  const key = (r, lvl) => [r.f.StudentID, lc(lvl), r.f.AcademicYear, r.f.Semester, r.f.Period].join("|");
+  const have = new Set(all.filter((r) => r.f.Subject === to).map((r) => key(r, r.f.ClassLevel)));
+  const rows = all.filter((r) => r.f.Subject === from && (level == null || lc(r.f.ClassLevel) === lc(level)));
+  const move = rows.filter((r) => !have.has(key(r, level == null ? r.f.ClassLevel : "")));
+  const res = await batch(move.map((r) => ({ method: "PATCH", url: `${itemsUrl(marksListName(r.list))}/${r.id}/fields`, body: level == null ? { Subject: to } : { Subject: to, ClassLevel: "" } })));
   const failed = batchFailures(res).length;
   const src = S.subjects.find((s) => s.f.Grade === g && s.f.Title === from), dst = S.subjects.find((s) => s.f.Grade === g && lc(s.f.Title) === lc(to));
-  if (src && !dst) { await graph("PATCH", `${itemsUrl(L.subjects)}/${src.id}/fields`, { Title: to }); src.f.Title = to; }
+  if (level != null) {
+    // Only some rows moved: the old subject stays; make sure the new one exists and is shown.
+    if (!dst) S.subjects.push(norm(await graph("POST", itemsUrl(L.subjects), { fields: { Title: to, Grade: g, SubjectType: src?.f.SubjectType || "I", PrintsOnCard: true,
+      SortOrder: (src?.f.SortOrder ?? Math.max(0, ...S.subjects.map((s) => s.f.SortOrder || 0))) + 1 } })));
+    else if (dst.f.PrintsOnCard === false) { await graph("PATCH", `${itemsUrl(L.subjects)}/${dst.id}/fields`, { PrintsOnCard: true }); dst.f.PrintsOnCard = true; }
+  } else if (src && !dst) { await graph("PATCH", `${itemsUrl(L.subjects)}/${src.id}/fields`, { Title: to }); src.f.Title = to; }
   else if (src && dst) {
     await graph("PATCH", `${itemsUrl(L.subjects)}/${src.id}/fields`, { PrintsOnCard: false }); src.f.PrintsOnCard = false;
     if (dst.f.PrintsOnCard === false) { await graph("PATCH", `${itemsUrl(L.subjects)}/${dst.id}/fields`, { PrintsOnCard: true }); dst.f.PrintsOnCard = true; }
@@ -1744,16 +1751,17 @@ function bindYearTools() {
   };
   // Planned changes from config (pendingSubjectChanges): status is read from the live Subjects list.
   const drawPlanned = () => {
-    const plan = P().pendingSubjectChanges || [];
-    if (!plan.length) return ($("#mgPlanned").innerHTML = "");
     const find = (g, n) => S.subjects.find((s) => s.f.Grade === g && lc(s.f.Title) === lc(n));
     const shown = (x) => x && x.f.PrintsOnCard !== false;
     const status = (c) => {
-      if (c.rename) { const a = find(c.grade, c.rename), b = find(c.grade, c.to); return shown(b) && !shown(a) ? "done" : a ? "todo" : "missing"; }
+      if (c.rename && c.level != null) return allMarks().some((r) => classGradeOf(r) === c.grade && r.f.Subject === c.rename && lc(r.f.ClassLevel) === lc(c.level)) ? "todo" : "skip";
+      if (c.rename) { const a = find(c.grade, c.rename), b = find(c.grade, c.to); return shown(b) && !shown(a) ? "done" : a ? "todo" : c.optional ? "skip" : "missing"; }
       if (c.hide) return shown(find(c.grade, c.hide)) ? "todo" : "done";
       return shown(find(c.grade, c.add)) ? "done" : "todo";
     };
-    const what = (c) => c.rename ? `Rename “${esc(c.rename)}” → “${esc(c.to)}”` : c.hide ? `Hide “${esc(c.hide)}”` : `Add “${esc(c.add)}” (${esc(c.type || "I")})`;
+    const plan = (P().pendingSubjectChanges || []).filter((c) => status(c) !== "skip");
+    if (!plan.length) return ($("#mgPlanned").innerHTML = "");
+    const what = (c) => c.rename ? `${c.level != null ? `Move “${esc(c.rename)}” classes at level “${esc(c.level)}”` : `Rename “${esc(c.rename)}”`} → “${esc(c.to)}”` : c.hide ? `Hide “${esc(c.hide)}”` : `Add “${esc(c.add)}” (${esc(c.type || "I")})`;
     const badge = { done: `<span class="badge ok">Done</span>`, todo: `<span class="badge warn">To do</span>`, missing: `<span class="badge">Old name not found</span>` };
     const todo = plan.filter((c) => status(c) === "todo");
     $("#mgPlanned").innerHTML = `
@@ -1770,7 +1778,7 @@ function bindYearTools() {
       const notes = []; let bad = false;
       for (const c of todo) {
         try {
-          if (c.rename) { const r = await renameSubject(c.grade, c.rename, c.to); bad ||= !!(r.failed || r.clash); notes.push(`${c.grade} ${c.to}: ${r.moved} mark rows moved${r.failed ? `, ${r.failed} failed` : ""}${r.clash ? `, ${r.clash} clashes` : ""}`); }
+          if (c.rename) { const r = await renameSubject(c.grade, c.rename, c.to, c.level); bad ||= !!(r.failed || r.clash); notes.push(`${c.grade} ${c.to}: ${r.moved} mark rows moved${r.failed ? `, ${r.failed} failed` : ""}${r.clash ? `, ${r.clash} clashes` : ""}`); }
           else if (c.hide) { const x = find(c.grade, c.hide); await graph("PATCH", `${itemsUrl(L.subjects)}/${x.id}/fields`, { PrintsOnCard: false }); x.f.PrintsOnCard = false; }
           else {
             const x = find(c.grade, c.add);

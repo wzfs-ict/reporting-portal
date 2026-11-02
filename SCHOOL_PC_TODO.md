@@ -12,10 +12,15 @@ Refresh the page with Ctrl+F5 first, so the browser loads the new code. No stude
 ## 2. Subjects: Setup → card 5 → "Planned subject changes"
 - [ ] Take a **Snapshot** first (Health check card).
 - [ ] Click **Apply**. In one go, this:
+  - **A-level Maths, each paper as its own subject**, all four in G11 and G12: AS Mathematics (Pure Mathematics 1), AS Mathematics (Probability and Statistics 1), A2 Mathematics (Pure Mathematics 3), A2 Mathematics (Probability and Statistics 1). Michael's classes move with their marks:
+    - G11 "AS Maths (Pure Math 1 and Mechanics)" becomes AS Mathematics (Pure Mathematics 1);
+    - his two G12 "AS Maths" classes (Pure Mathematics 3, Probability and Statistics 1) become the two **A2** subjects;
+    - the old AS Maths and A2 Maths names become the Pure Mathematics subjects;
   - hides A2 Business Studies in G11 and G12;
   - adds Elective (Science Investigations), type II, to G1–G5 and ZSA.
 - [ ] Every row should then show **Done**. If a row says "Old name not found", the live list uses a different name: use the **Rename** button in the subjects table for that one.
-- [ ] **AS/A2 Maths: on hold until Bijily (maths head) decides.** Proposal: G11 AS Mathematics and G12 A2 Mathematics, with each paper entered as a class level (Pure Mathematics 1/3, Probability and Statistics 1) and one combined line on the report card. Still open: the weighting (60/40?), whether G11 enters two papers, and whether plain G12 "Maths" stays. Leave Michael's classes as they are until then.
+- [ ] Ask Michael to check his classes after the change, then refresh. The cards should read G11 AS Mathematics (Pure Mathematics 1), G12 A2 Mathematics (Pure Mathematics 3) and G12 A2 Mathematics (Probability and Statistics 1).
+- [ ] Plain G12 "Maths" is left alone. Hide it if it isn't taught.
 - [ ] After that, delete the `pendingSubjectChanges` entries from `config.js` and push.
 
 ## 3. Still open from before
