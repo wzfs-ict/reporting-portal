@@ -36,6 +36,8 @@ A cloud session can edit, commit and push this repo. It **cannot**:
 - open OneDrive files (rosters, classwise xlsx, signatures, staff guides);
 - open `.local/`.
 
+Pending school-PC work is listed in `SCHOOL_PC_TODO.md`; on the school PC, start there.
+
 When a task needs any of those (data scans, restoring marks, roster or ID changes, new signatures), say so plainly. Glen will connect the VPN on the school PC and continue there.
 
 Teachers can check data themselves: the **Health check** card on the Setup tab (orphan IDs, bad scores, duplicates, photos, recycle bin) and **Snapshot**, which downloads an Excel backup of everything.
