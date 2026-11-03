@@ -1766,7 +1766,7 @@ function bindYearTools() {
     const status = (c) => {
       if (c.rename && c.level != null) return allMarks().some((r) => classGradeOf(r) === c.grade && r.f.Subject === c.rename && lc(r.f.ClassLevel) === lc(c.level)) ? "todo" : "skip";
       if (c.rename) { const a = find(c.grade, c.rename), b = find(c.grade, c.to); return shown(b) && !shown(a) ? "done" : a ? "todo" : c.optional ? "skip" : "missing"; }
-      if (c.hide) return shown(find(c.grade, c.hide)) ? "todo" : "done";
+      if (c.hide) return shown(find(c.grade, c.hide)) ? "todo" : c.optional ? "skip" : "done";
       return shown(find(c.grade, c.add)) ? "done" : "todo";
     };
     const plan = (P().pendingSubjectChanges || []).filter((c) => status(c) !== "skip");
@@ -1789,7 +1789,11 @@ function bindYearTools() {
       for (const c of todo) {
         try {
           if (c.rename) { const r = await renameSubject(c.grade, c.rename, c.to, c.level); bad ||= !!(r.failed || r.clash); notes.push(`${c.grade} ${c.to}: ${r.moved} mark rows moved${r.failed ? `, ${r.failed} failed` : ""}${r.clash ? `, ${r.clash} clashes` : ""}`); }
-          else if (c.hide) { const x = find(c.grade, c.hide); await graph("PATCH", `${itemsUrl(L.subjects)}/${x.id}/fields`, { PrintsOnCard: false }); x.f.PrintsOnCard = false; }
+          else if (c.hide) {
+            const x = find(c.grade, c.hide); await graph("PATCH", `${itemsUrl(L.subjects)}/${x.id}/fields`, { PrintsOnCard: false }); x.f.PrintsOnCard = false;
+            const left = allMarks().filter((r) => classGradeOf(r) === c.grade && r.f.Subject === x.f.Title).length;
+            if (left) { bad = true; notes.push(`${c.grade} "${x.f.Title}" is hidden but still has ${left} mark row${left > 1 ? "s" : ""}: use Rename on it`); }
+          }
           else {
             const x = find(c.grade, c.add);
             if (x) { await graph("PATCH", `${itemsUrl(L.subjects)}/${x.id}/fields`, { PrintsOnCard: true }); x.f.PrintsOnCard = true; }
