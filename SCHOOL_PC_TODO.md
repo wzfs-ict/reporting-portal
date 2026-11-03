@@ -12,15 +12,16 @@ Refresh the page with Ctrl+F5 first, so the browser loads the new code. No stude
 ## 2. Subjects: Setup → card 5 → "Planned subject changes"
 - [ ] Take a **Snapshot** first (Health check card).
 - [ ] Click **Apply**. In one go, this:
-  - **A-level Maths, each paper as its own subject**, all four in G11 and G12: AS Mathematics (Pure Mathematics 1), AS Mathematics (Probability and Statistics 1), A2 Mathematics (Pure Mathematics 3), A2 Mathematics (Probability and Statistics 1). Michael's classes move with their marks:
-    - G11 "AS Maths (Pure Math 1 and Mechanics)" becomes AS Mathematics (Pure Mathematics 1);
-    - his two G12 "AS Maths" classes (Pure Mathematics 3, Probability and Statistics 1) become the two **A2** subjects;
-    - the old AS Maths and A2 Maths names become the Pure Mathematics subjects;
+  - **Maths (Bijily, 3 Nov):** three subjects in G11 and G12: **AS Mathematics (Pure Math 1 & Statistics)**, **A2 Mathematics (Pure Math 3 & Statistics)**, and **Mathematics** (for the bobaes not taking AS or A2). Michael's classes move with their marks:
+    - G11 "AS Maths (Pure Math 1 and Mechanics)" becomes AS Mathematics (Pure Math 1 & Statistics);
+    - his two G12 paper classes (Pure Mathematics 3, Probability and Statistics 1) merge into **A2 Mathematics (Pure Math 3 & Statistics)**. Of each bobae's two rows, the one with marks is kept and the empty one is deleted (it stays in the recycle bin);
+    - old A2 Maths becomes A2 Mathematics (Pure Math 3 & Statistics); G12 "Maths" becomes Mathematics;
   - hides A2 Business Studies in G11 and G12;
   - adds Elective (Science Investigations), type II, to G1–G5 and ZSA.
 - [ ] Every row should then show **Done**. If a row says "Old name not found", the live list uses a different name: use the **Rename** button in the subjects table for that one.
-- [ ] Ask Michael to check his classes after the change, then refresh. The cards should read G11 AS Mathematics (Pure Mathematics 1), G12 A2 Mathematics (Pure Mathematics 3) and G12 A2 Mathematics (Probability and Statistics 1).
-- [ ] Plain G12 "Maths" is left alone. Hide it if it isn't taught.
+- [ ] If Apply reports **clashes**, a G12 bobae has marks on *both* papers. Those rows stay on Michael's old "AS Maths (Probability and Statistics 1)" card. Michael enters the combined mark on the A2 card, then deletes the old card.
+- [ ] Ask Michael to refresh and check. He should see G11 AS Mathematics (Pure Math 1 & Statistics) and G12 A2 Mathematics (Pure Math 3 & Statistics), and one mark per bobae per level.
+- [ ] The two bobaes not taking AS/A2: their maths teacher adds a **Mathematics** class for them (My classes → Add a class).
 - [ ] After that, delete the `pendingSubjectChanges` entries from `config.js` and push.
 
 ## 3. Still open from before

@@ -78,20 +78,24 @@ window.APP_CONFIG = {
   // Subject changes waiting to be applied (Setup → card 5 → Apply). Each shows "done" once the live list matches;
   // remove entries after they're applied. A rename also moves every mark row (all periods) to the new name.
   // level: only classes at that class level move (and the level is cleared). optional: hidden if the old name isn't there.
-  // A-level Maths, Nov 2026: each paper is its own subject, all four offered in G11 and G12. Mechanics is gone.
+  // A-level Maths, 3 Nov 2026 (Bijily, maths head): one subject per level, both papers in one; Mechanics gone.
+  // "Mathematics" is for the bobaes taking neither AS nor A2. All three offered in G11 and G12.
   pendingSubjectChanges: [
     // Michael's G12 classes were made as "AS Maths" with the paper as the class level; both papers are A2 (Beverly).
-    { grade: "G12", rename: "AS Maths", level: "Pure Mathematics 3", to: "A2 Mathematics (Pure Mathematics 3)", why: "Michael's class" },
-    { grade: "G12", rename: "AS Maths", level: "Probability and Statistics 1", to: "A2 Mathematics (Probability and Statistics 1)", why: "Michael's class" },
-    { grade: "G11", rename: "AS Maths (Pure Math 1 and Mechanics)", to: "AS Mathematics (Pure Mathematics 1)", why: "Mechanics replaced by P&S 1" },
-    { grade: "G11", rename: "A2 Maths", to: "A2 Mathematics (Pure Mathematics 3)", why: "Standard name" },
-    { grade: "G12", rename: "AS Maths", to: "AS Mathematics (Pure Mathematics 1)", why: "Standard name" },
-    { grade: "G12", rename: "A2 Maths", to: "A2 Mathematics (Pure Mathematics 3)", why: "Standard name" },
+    // Merging the two papers keeps the row with marks and drops the empty duplicate.
+    { grade: "G12", rename: "AS Maths", level: "Pure Mathematics 3", to: "A2 Mathematics (Pure Math 3 & Statistics)", why: "Michael's class" },
+    { grade: "G12", rename: "AS Maths", level: "Probability and Statistics 1", to: "A2 Mathematics (Pure Math 3 & Statistics)", why: "Michael's class" },
+    { grade: "G12", rename: "AS Maths", level: "", to: "AS Mathematics (Pure Math 1 & Statistics)", why: "Bijily" },
+    { grade: "G12", hide: "AS Maths", why: "Replaced by AS Mathematics (Pure Math 1 & Statistics)" },
+    { grade: "G12", rename: "A2 Maths", to: "A2 Mathematics (Pure Math 3 & Statistics)", why: "Bijily" },
+    { grade: "G12", rename: "Maths", to: "Mathematics", why: "Bijily: for bobaes not taking AS/A2" },
+    { grade: "G11", rename: "AS Maths (Pure Math 1 and Mechanics)", to: "AS Mathematics (Pure Math 1 & Statistics)", why: "Bijily: Mechanics replaced by Statistics" },
+    { grade: "G11", rename: "A2 Maths", to: "A2 Mathematics (Pure Math 3 & Statistics)", why: "Bijily" },
     // In case these were added by hand under Michael's first request.
     ...["G11", "G12"].flatMap((grade) => [["Probability and Statistics 1", grade === "G12" ? "A2" : "AS"], ["Pure Mathematics 3", "A2"]].map(([n, lv]) =>
-      ({ grade, rename: n, to: `${lv} Mathematics (${n})`, optional: true, why: "Standard name" }))),
-    ...["G11", "G12"].flatMap((grade) => ["AS Mathematics (Pure Mathematics 1)", "AS Mathematics (Probability and Statistics 1)",
-      "A2 Mathematics (Pure Mathematics 3)", "A2 Mathematics (Probability and Statistics 1)"].map((add) => ({ grade, add, type: "I", why: "All four papers in G11 and G12" }))),
+      ({ grade, rename: n, to: lv === "AS" ? "AS Mathematics (Pure Math 1 & Statistics)" : "A2 Mathematics (Pure Math 3 & Statistics)", optional: true, why: "Bijily" }))),
+    ...["G11", "G12"].flatMap((grade) => ["AS Mathematics (Pure Math 1 & Statistics)", "A2 Mathematics (Pure Math 3 & Statistics)", "Mathematics"]
+      .map((add) => ({ grade, add, type: "I", why: "Bijily: all three in G11 and G12" }))),
     { grade: "G11", hide: "A2 Business Studies", why: "Beverly: no A2 Business this year" },
     { grade: "G12", hide: "A2 Business Studies", why: "Beverly: no A2 Business this year" },
     ...["G1", "G2", "G3", "G4", "G5", "ZSA"].map((grade) => ({ grade, add: "Elective (Science Investigations)", type: "II", why: "Whole school" })),

@@ -1672,16 +1672,26 @@ function viewSetup(main) {
 // Rename a subject in one grade: moves every mark row (all periods, every grade list, so guests too) whose class is
 // in that grade, then renames the Subjects row (or hides it if the new name already exists). Versioning keeps the old values.
 // With a level, only rows at that class level move and the level is cleared (a paper entered as a level becomes its own subject).
-// A row is left alone if the same bobae already has the new subject at the same level in the same period (it would duplicate).
+// If the bobae already has a row under the new name (same level and period), the empty one of the two is deleted (recycle bin);
+// if both have entries, the moving row is left alone and counted as a clash.
 async function renameSubject(g, from, to, level) {
   const all = (await Promise.all(P().grades.filter((x) => S.lists[marksListName(x)])
     .map(async (x) => (await readList(marksListName(x))).map((r) => ({ ...r, list: x }))))).flat().filter((r) => classGradeOf(r) === g);
   const key = (r, lvl) => [r.f.StudentID, lc(lvl), r.f.AcademicYear, r.f.Semester, r.f.Period].join("|");
-  const have = new Set(all.filter((r) => r.f.Subject === to).map((r) => key(r, r.f.ClassLevel)));
+  const empty = (r) => blank(r.f.Score) && blank(r.f.Behaviour) && !(r.f.Remark || "").trim() && !r.f.Concern;
+  const have = new Map(all.filter((r) => r.f.Subject === to).map((r) => [key(r, r.f.ClassLevel), r]));
   const rows = all.filter((r) => r.f.Subject === from && (level == null || lc(r.f.ClassLevel) === lc(level)));
-  const move = rows.filter((r) => !have.has(key(r, level == null ? r.f.ClassLevel : "")));
-  const res = await batch(move.map((r) => ({ method: "PATCH", url: `${itemsUrl(marksListName(r.list))}/${r.id}/fields`, body: level == null ? { Subject: to } : { Subject: to, ClassLevel: "" } })));
-  const failed = batchFailures(res).length;
+  const url = (r) => `${itemsUrl(marksListName(r.list))}/${r.id}`;
+  const reqs = [];
+  let moved = 0, clash = 0;
+  for (const r of rows) {
+    const t = have.get(key(r, level == null ? r.f.ClassLevel : ""));
+    if (t && empty(r)) { reqs.push({ method: "DELETE", url: url(r) }); continue; }
+    if (t && !empty(t)) { clash++; continue; }
+    if (t) reqs.push({ method: "DELETE", url: url(t) });
+    reqs.push({ method: "PATCH", url: `${url(r)}/fields`, body: level == null ? { Subject: to } : { Subject: to, ClassLevel: "" } }); moved++;
+  }
+  const failed = batchFailures(await batch(reqs)).length;
   const src = S.subjects.find((s) => s.f.Grade === g && s.f.Title === from), dst = S.subjects.find((s) => s.f.Grade === g && lc(s.f.Title) === lc(to));
   if (level != null) {
     // Only some rows moved: the old subject stays; make sure the new one exists and is shown.
@@ -1694,7 +1704,7 @@ async function renameSubject(g, from, to, level) {
     if (dst.f.PrintsOnCard === false) { await graph("PATCH", `${itemsUrl(L.subjects)}/${dst.id}/fields`, { PrintsOnCard: true }); dst.f.PrintsOnCard = true; }
   }
   await loadMarks();
-  return { moved: move.length - failed, failed, clash: rows.length - move.length };
+  return { moved: moved - failed, failed, clash };
 }
 // Setup step 5: maintain subjects and the award catalogue in place.
 function bindYearTools() {
