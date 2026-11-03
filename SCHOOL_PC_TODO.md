@@ -12,7 +12,7 @@ Refresh the page with Ctrl+F5 first, so the browser loads the new code. No stude
 ## 2. Subjects: Setup → card 5 → "Planned subject changes"
 - [ ] Take a **Snapshot** first (Health check card).
 - [ ] Click **Apply**. In one go, this:
-  - **Maths (Bijily, 3 Nov):** three subjects in G11 and G12: **AS Mathematics (Pure Math 1 & Probability and Statistics 1)**, **A2 Mathematics (Pure Math 3 & Probability and Statistics 1)**, and **Mathematics** (for the bobaes not taking AS or A2). Michael's classes move with their marks:
+  - **Maths (Bijily, 3 Nov):** three subjects in G11 and G12: **AS Mathematics (Pure Math 1 & Probability and Statistics 1)**, **A2 Mathematics (Pure Math 3 & Probability and Statistics 1)**, and **Mathematics** (for the bobaes not taking AS or A2), plus **Pure Mathematics 1** on its own (Beverly). Michael's classes move with their marks:
     - G11 "AS Maths (Pure Math 1 and Mechanics)" becomes AS Mathematics (Pure Math 1 & Probability and Statistics 1);
     - his two G12 paper classes (Pure Mathematics 3, Probability and Statistics 1) merge into **A2 Mathematics (Pure Math 3 & Probability and Statistics 1)**. Of each bobae's two rows, the one with marks is kept and the empty one is deleted (it stays in the recycle bin);
     - old A2 Maths becomes A2 Mathematics (Pure Math 3 & Probability and Statistics 1); G12 "Maths" becomes Mathematics;

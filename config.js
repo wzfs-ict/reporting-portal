@@ -96,6 +96,7 @@ window.APP_CONFIG = {
       ({ grade, rename: n, to: lv === "AS" ? "AS Mathematics (Pure Math 1 & Probability and Statistics 1)" : "A2 Mathematics (Pure Math 3 & Probability and Statistics 1)", optional: true, why: "Bijily" }))),
     ...["G11", "G12"].flatMap((grade) => ["AS Mathematics (Pure Math 1 & Probability and Statistics 1)", "A2 Mathematics (Pure Math 3 & Probability and Statistics 1)", "Mathematics"]
       .map((add) => ({ grade, add, type: "I", why: "Bijily: all three in G11 and G12" }))),
+    ...["G11", "G12"].map((grade) => ({ grade, add: "Pure Mathematics 1", type: "I", why: "Beverly: offered on its own as well" })),
     { grade: "G11", hide: "A2 Business Studies", why: "Beverly: no A2 Business this year" },
     { grade: "G12", hide: "A2 Business Studies", why: "Beverly: no A2 Business this year" },
     ...["G1", "G2", "G3", "G4", "G5", "ZSA"].map((grade) => ({ grade, add: "Elective (Science Investigations)", type: "II", why: "Whole school" })),
