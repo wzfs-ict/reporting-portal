@@ -86,9 +86,16 @@ async function token(scopes = SCOPES) {
 }
 async function graph(method, path, body, scopes) {
   if (S.viewAs && method !== "GET") throw new Error("Preview only: nothing is saved while you're viewing as someone else. Switch back to yourself to make changes.");
-  const r = await fetch(path.startsWith("http") ? path : GRAPH + path, {
-    method, headers: { Authorization: "Bearer " + await token(scopes), "Content-Type": "application/json" },
-    body: body ? JSON.stringify(body) : undefined });
+  // SharePoint answers 429/503/504 when busy (e.g. a whole class saving at once): wait and retry.
+  // POST is not retried, so a create is never sent twice.
+  let r;
+  for (let attempt = 0; ; attempt++) {
+    r = await fetch(path.startsWith("http") ? path : GRAPH + path, {
+      method, headers: { Authorization: "Bearer " + await token(scopes), "Content-Type": "application/json" },
+      body: body ? JSON.stringify(body) : undefined });
+    if (![429, 503, 504].includes(r.status) || method === "POST" || attempt >= 3) break;
+    await sleep((Number(r.headers.get("Retry-After")) || 1.5 * (attempt + 1)) * 1000);
+  }
   if (!r.ok) { let m = r.statusText; try { m = (await r.json()).error.message || m; } catch (_) {} throw Object.assign(new Error(`${m} (HTTP ${r.status})`), { status: r.status }); }
   return r.status === 204 ? null : r.json();
 }
@@ -564,12 +571,22 @@ function viewEntry(main) {
   for (const tr of $$("tbody tr[data-i]", main)) {
     const r = rows[Number(tr.dataset.i)];
     const state = $(".rowstate", tr);
+    // A change that failed is kept and sent again with the row's next save, so it's never silently lost.
+    let unsaved = {};
     const save = async (fields) => {
+      const send = { ...unsaved, ...fields };
       state.className = "rowstate"; state.textContent = "Saving…";
       try {
-        await graph("PATCH", `${listUrl(r)}/${r.id}/fields`, fields);
-        Object.assign(r.f, fields); state.textContent = "Saved ✓"; progress();
-      } catch (e) { state.className = "rowstate err"; state.textContent = "Not saved"; state.title = e.message; flash("error", `Couldn't save ${r.f.FullName}: ${e.message}`); }
+        await graph("PATCH", `${listUrl(r)}/${r.id}/fields`, send);
+        Object.keys(send).forEach((k) => { if (unsaved[k] === send[k]) delete unsaved[k]; });
+        Object.assign(r.f, send); progress();
+        if (Object.keys(unsaved).length) { state.className = "rowstate err"; state.textContent = "Part not saved"; }
+        else { state.textContent = "Saved ✓"; state.title = ""; }
+      } catch (e) {
+        Object.assign(unsaved, fields);
+        state.className = "rowstate err"; state.textContent = "Not saved"; state.title = e.message;
+        flash("error", `Couldn't save ${r.f.FullName}: ${e.message}. Change anything on the row to try again.`);
+      }
     };
     const score = $(".score", tr), beh = $(".beh", tr), rem = $(".remark", tr);
     score.onchange = () => {
