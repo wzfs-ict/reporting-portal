@@ -231,6 +231,8 @@ window.APP_CONFIG = {
   },
 
   // ── Scales ───────────────────────────────────────────────
+  // Scores are rounded to this many decimals when saved and shown (0 = whole numbers; 84.5 → 85).
+  scoreDecimals: 0,
   // PTC sheet bar colours by score (highest first). Only the labels are shown, never the numbers.
   scoreBands: [
     { min: 85, label: "Excellent" },

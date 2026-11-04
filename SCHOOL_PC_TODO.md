@@ -9,6 +9,15 @@ Refresh the page with Ctrl+F5 first, so the browser loads the new code. No stude
 - [ ] **Report cards** tab: if the "category kept to named people" warning appears, click **Delete these N**. That removes every PTL award given by anyone other than Arsenio, Roger Russell, Beverly or an admin, including Gregg's.
 - [ ] Confirm "Russell" is Roger Russell (rrussell@). If not, fix `awardCategoryGivers` in `config.js`.
 
+## 1b. PTC sheets and scores (commits 80f6d08 and the rounding commit)
+- [ ] Open a PTC sheet (advisor view) for a grade with marks. Check:
+  - the bar colour follows the score: green Excellent, light green Good, amber Satisfactory, red Needs support. A low score with Excellent behaviour must show **red**;
+  - behaviour is its own column headed "Behaviour"; "Needs Improvement" and ⚑ show in red;
+  - the key at the bottom shows only the labels, no numbers.
+- [ ] Check a parent view (View as → parent) shows the same.
+- [ ] Scores are whole numbers: type 84.36 in a class and it saves as 84. Existing decimals (e.g. 84.4) show rounded on the class page, the PTC sheet and the report card export.
+- [ ] Generate one report card and check the scores print as whole numbers.
+
 ## 2. Subjects: Setup → card 5 → "Planned subject changes"
 - [ ] Take a **Snapshot** first (Health check card).
 - [ ] Click **Apply**. In one go, this:

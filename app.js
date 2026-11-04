@@ -159,11 +159,12 @@ async function loadAll() {
 }
 async function loadMarks(grade) {
   const grades = grade ? [grade] : P().grades;
-  await Promise.all(grades.map(async (g) => { S.marks[g] = (await readList(marksListName(g))).filter((x) => inPeriod(x.f)).map((x) => ({ ...x, list: g })); }));
+  await Promise.all(grades.map(async (g) => { S.marks[g] = (await readList(marksListName(g))).filter((x) => inPeriod(x.f)).map((x) => ({ ...x, f: { ...x.f, Score: roundScore(x.f.Score) }, list: g })); }));
 }
 // A mark row lives in the bobae's own grade list (r.list), so it reaches their report card and advisor.
 // ClassGrade is the grade of the class they sit in, e.g. a G11 bobae in a G10 class. Blank = same as the list.
 const allMarks = () => Object.values(S.marks).flat();
+const roundScore = (v) => { if (blank(v)) return v; const k = 10 ** (P().scoreDecimals ?? 0); return Math.round(Number(v) * k) / k; };
 const classGradeOf = (r) => r.f.ClassGrade || r.list;
 // Student photos: one Graph call lists the library with ready-made thumbnail links (no file downloads).
 async function loadPhotos() {
@@ -576,7 +577,7 @@ function viewEntry(main) {
       if (t === "") { score.classList.remove("invalid"); return save({ Score: null }); }
       const n = Number(t);
       if (!Number.isFinite(n) || n < 0 || n > 100) { score.classList.add("invalid"); state.className = "rowstate err"; state.textContent = "0–100"; return; }
-      score.classList.remove("invalid"); save({ Score: Math.round(n * 10) / 10 });
+      score.classList.remove("invalid"); score.value = roundScore(n); save({ Score: roundScore(n) });
     };
     score.onkeydown = (e) => {
       if (e.key === "Enter" || e.key === "ArrowDown" || e.key === "ArrowUp") {
