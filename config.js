@@ -231,6 +231,13 @@ window.APP_CONFIG = {
   },
 
   // ── Scales ───────────────────────────────────────────────
+  // PTC sheet bar colours by score (highest first). Only the labels are shown, never the numbers.
+  scoreBands: [
+    { min: 85, label: "Excellent" },
+    { min: 70, label: "Good" },
+    { min: 60, label: "Satisfactory" },
+    { min: 0, label: "Needs support" },
+  ],
   behaviourScale: [
     { value: 1, label: "Excellent" },
     { value: 2, label: "Good" },

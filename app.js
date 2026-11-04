@@ -921,7 +921,9 @@ function ptcStudents(g) {
 }
 function ptcPage(g, d, i, n) {
   const name = d.st.CalledName || d.st.FullName;
-  const behClass = (b) => ["", "b1", "b2", "b3", "b4"][Number(b)] || "";
+  // Bar colour = score band (s1 best … s4); behaviour is its own text column so a low mark never looks green.
+  const bands = P().scoreBands || [];
+  const scoreClass = (v) => { if (blank(v)) return ""; const k = bands.findIndex((b) => Number(v) >= b.min); return k < 0 ? "" : "s" + Math.min(k + 1, 4); };
   const short = (b) => (P().behaviourScale.find((x) => x.value === Number(b))?.label || "");
   const subjName = (r) => esc(subjectDisplay(r.f));
   const overall = d.avg === null ? `No marks have been entered for ${esc(name)} yet.`
@@ -942,12 +944,13 @@ function ptcPage(g, d, i, n) {
         <h4>Overall</h4><p>${overall}</p>
         ${d.missing.length ? `<p class="ptc-miss">Not yet entered: ${d.missing.map(subjName).join(", ")}</p>` : ""}
         <h4>Subject scores</h4>
-        <table class="ptc-scores">${d.subj.map((r) => `
+        <table class="ptc-scores"><tr><th>Subject</th><th>Score</th><th></th><th>Behaviour</th></tr>${d.subj.map((r) => `
           <tr><td>${subjName(r)}</td>
-            <td class="bar"><i class="${behClass(r.f.Behaviour)}" style="width:${blank(r.f.Score) ? 0 : Math.max(2, Math.min(100, Number(r.f.Score)))}%"></i></td>
-            <td class="num">${blank(r.f.Score) ? "–" : esc(r.f.Score) + "%"}</td><td class="beh">${esc(short(r.f.Behaviour))}${r.f.Concern ? " ⚑" : ""}</td></tr>`).join("")}
+            <td class="bar"><i class="${scoreClass(r.f.Score)}" style="width:${blank(r.f.Score) ? 0 : Math.max(2, Math.min(100, Number(r.f.Score)))}%"></i></td>
+            <td class="num">${blank(r.f.Score) ? "–" : esc(r.f.Score) + "%"}</td>
+            <td class="beh${Number(r.f.Behaviour) === 4 || r.f.Concern ? " warn" : ""}">${esc(short(r.f.Behaviour))}${r.f.Concern ? " ⚑" : ""}</td></tr>`).join("")}
         </table>
-        <div class="ptc-key">${P().behaviourScale.map((b) => `<span><i class="${behClass(b.value)}"></i>${esc(b.label)}</span>`).join("")}</div>
+        <div class="ptc-key"><b>Score:</b>${bands.map((b, k) => `<span><i class="s${Math.min(k + 1, 4)}"></i>${esc(b.label)}</span>`).join("")}<span>⚑ teacher concern</span></div>
         ${d.remarks.length ? `<h4>What teachers are saying</h4>${d.remarks.map((r) => `<p class="ptc-q"><b>${subjName(r)}:</b> “${esc(r.f.Remark)}”</p>`).join("")}` : ""}
         ${d.concerns.length ? `<h4>Behaviour &amp; concerns</h4>${d.concerns.map((r) => `<p class="ptc-q concern"><b>${subjName(r)} [${[r.f.Concern ? "⚑ flagged by teacher" : "", Number(r.f.Behaviour) >= 3 ? esc(short(r.f.Behaviour)) : ""].filter(Boolean).join(" · ")}]</b>${r.f.Remark ? ` “${esc(r.f.Remark)}”` : ""}</p>`).join("")}` : ""}
       </div>
