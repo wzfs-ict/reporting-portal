@@ -921,9 +921,11 @@ function ptcStudents(g) {
   const order = (r) => { const s = S.subjects.find((x) => x.f.Grade === g && x.f.Title === r.f.Subject); return s ? (s.f.SortOrder ?? 999) : 999; };
   // Primary PTC sheets show only the core subjects (Chinese, English, Maths, Science, and Accelerated English where taught).
   const core = isPrimary(g) ? ((P().primary || {}).ptcSubjects || []).map(lc) : null;
+  const opt = P().ptcOptionalSubjects;
+  const skip = (r) => isMidterm() && opt && opt.test(r.f.Subject || "") && blank(r.f.Score) && blank(r.f.Behaviour) && !(r.f.Remark || "").trim() && !r.f.Concern;
   return rosterFor(g).map((st) => {
     const id = st.f.Title;
-    const subj = rows.filter((r) => r.f.StudentID === id && (!core || core.includes(lc(r.f.Subject))))
+    const subj = rows.filter((r) => r.f.StudentID === id && (!core || core.includes(lc(r.f.Subject))) && !skip(r))
       .sort((a, b) => (a.f.SubjectType || "I").localeCompare(b.f.SubjectType || "I") || order(a) - order(b));
     const scored = subj.filter((r) => !blank(r.f.Score));
     const avg = scored.length ? scored.reduce((a, r) => a + Number(r.f.Score), 0) / scored.length : null;
