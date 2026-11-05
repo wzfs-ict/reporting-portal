@@ -548,7 +548,8 @@ function viewEntry(main) {
           ${editable && (mine || isAdmin()) ? `<td>${rowEditable(r) ? `<button class="btn small danger rm" title="Remove this student from the class">✕</button>` : ""}</td>` : ""}
         </tr>`).join("")}
       </tbody></table></div>
-    ${editable && (mine || isAdmin()) ? `
+    ${editable && !mine && isAdmin() ? notice("", `To add a bobae, ask ${esc(rows[0]?.byName || rows[0]?.f.TeacherName || "the teacher")} to use <b>Add students</b> on this page. A row belongs to whoever creates it, so one added by you would start a separate class under your name that the teacher can't edit.`) : ""}
+    ${editable && mine ? `
       <details class="card"><summary>Add students${missingIds.length ? ` (${missingIds.length} in ${esc(grade)} not in this class)` : ""}, or bobaes from other grades</summary>
         ${missingIds.length ? `<div class="grid" style="margin-top:10px">${missingIds.map((s) => `<label class="stu-pick"><input type="checkbox" class="addStu" value="${esc(s.f.Title)}">${photo(s.f.Title, 32)}<span><b>${esc(s.f.CalledName || s.f.FullName)}</b><span class="muted small" style="display:block">${esc(s.f.FullName)}</span></span></label>`).join("")}</div>` : ""}
         <h3 style="margin-top:14px">From other grades</h3><div id="addOther"></div>
