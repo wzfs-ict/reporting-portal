@@ -19,10 +19,10 @@ Refresh the page with Ctrl+F5 first, so the browser loads the new code. No stude
 - [ ] Generate one report card and check the scores print as whole numbers.
 
 ## 1c. Department heads (new read-only "Department view")
-- [ ] Setup → **Permissions** → run it. This gives Jayesh Patole (Science), Bijily Reacher (Maths), Mae Parker (Humanities) and Randy Wang (Chinese) read access to the G6–G12 marks lists. Without it their Department view stays empty.
+- [ ] Setup → **Permissions** → run it. This gives Jayesh Patole (Science), Bijily Reacher (Maths), Mae Parker (Humanities) and Randy Wang (Chinese) read access to the G6–G12 and ZSA marks lists. Without it their Department view stays empty.
 - [ ] **View as** each of the four (Department heads group) and check the Department view lists only their subjects: Science = science subjects (not Computer Science or the Science Investigations elective), Maths, Humanities = English, Social Studies, Geography, History, IELTS, Chinese. Open a class: all boxes are locked.
-- [ ] Confirm Mae Parker (mparker@) is the "Mae" meant, and Randy Wang's account is randy@. Fix `departmentHeads` in `config.js` if not.
-- [ ] Note: SharePoint gives them Design access to those marks lists, so the app shows them only their subject, but SharePoint itself would let them see all subjects in those grades if they browsed the lists directly.
+- [ ] Mae Parker (mparker@) is confirmed as Mae; check Randy Wang's account is randy@.
+- [x] Accepted: SharePoint gives them Design access to those marks lists, so the app shows only their subject, but SharePoint itself would show all subjects if they browsed the lists directly.
 
 ## 2. Subjects: Setup → card 5 → "Planned subject changes"
 - [ ] Take a **Snapshot** first (Health check card).

@@ -163,13 +163,13 @@ window.APP_CONFIG = {
   // progress, averages, teachers). `match` is a regular expression on the subject name. They cannot edit anything.
   // Setup → Permissions gives them read access to those grades' marks lists, so run it after changing this.
   departmentHeads: {
-    "jpatole@zhongshischool.org": { name: "Science", grades: ["G6", "G7", "G8", "G9-1", "G9-2", "G10", "G11", "G12"],
+    "jpatole@zhongshischool.org": { name: "Science", grades: ["G6", "G7", "G8", "G9-1", "G9-2", "G10", "G11", "G12", "ZSA"],
       match: "^(?!.*(elective|computer)).*(science|chemistry|physics|biology)" },          // Jayesh Patole
-    "b_reacher@zhongshischool.org": { name: "Maths", grades: ["G6", "G7", "G8", "G9-1", "G9-2", "G10", "G11", "G12"],
+    "b_reacher@zhongshischool.org": { name: "Maths", grades: ["G6", "G7", "G8", "G9-1", "G9-2", "G10", "G11", "G12", "ZSA"],
       match: "math" },                                                                      // Bijily Reacher
-    "mparker@zhongshischool.org": { name: "Humanities", grades: ["G6", "G7", "G8", "G9-1", "G9-2", "G10", "G11", "G12"],
+    "mparker@zhongshischool.org": { name: "Humanities", grades: ["G6", "G7", "G8", "G9-1", "G9-2", "G10", "G11", "G12", "ZSA"],
       match: "english|literature|grammar|reading|written|ielts|social studies|geography|history" },   // Mae Parker
-    "randy@zhongshischool.org": { name: "Chinese", grades: ["G6", "G7", "G8", "G9-1", "G9-2", "G10", "G11", "G12"],
+    "randy@zhongshischool.org": { name: "Chinese", grades: ["G6", "G7", "G8", "G9-1", "G9-2", "G10", "G11", "G12", "ZSA"],
       match: "chinese|hsk|yct" },                                                           // Randy Wang
   },
   // Admin team: the only people who can generate report cards (Export tab). Admins are included automatically.
