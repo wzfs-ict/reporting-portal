@@ -213,6 +213,9 @@ const canAdvise = (g) => isAdmin() || isPrincipal() || advisorGrades().includes(
 const isReportTeam = () => isAdmin() || (P().reportTeam || []).map(lc).includes(S.me);
 // Division heads (e.g. Head of Primary) see their own grades read-only.
 const headGrades = () => (P().divisionHeads || {})[S.me] || [];
+// Department heads (config departmentHeads): read-only view of their subject across the upper school.
+const deptCfg = () => (P().departmentHeads || {})[S.me];
+const deptMatch = (d, subject) => new RegExp(d.match, "i").test(subject || "");
 const viewGrades = () => isLeader() ? P().grades : P().grades.filter((g) => advisorGrades().includes(g) || headGrades().includes(g));
 // "View as" (admins only): preview the app as someone else. Read-only; graph() refuses writes.
 const realAdmin = () => P().admins.map(lc).includes(S.realMe);
@@ -242,6 +245,7 @@ function tabsFor() {
   if (reviewGrades().length) t.unshift(["review", canApprove() ? "Principal review" : `Review (${reviewGrades()[0]}–${reviewGrades().slice(-1)[0]})`]);
   if (isLibrarian() || isAdmin()) t.push(["certs", "Certificates"]);
   if (viewGrades().length) t.push(["advisor", headGrades().length && !advisorGrades().length && !isLeader() ? "Division view" : "Advisor view"]);
+  if (deptCfg()) t.push(["dept", `${deptCfg().name} department`]);
   if (isReportTeam()) t.push(["export", "Report cards"]);
   if (isAdmin()) t.push(["setup", "Setup"]);
   t.push(["pde", "PDE (in progress)"], ["help", "Help"]);
@@ -276,6 +280,7 @@ function viewAsMenu() {
     <option value="">View as: myself</option>
     <optgroup label="Admin team (report cards)">${(p.reportTeam || []).map((e) => opt(e)).join("")}</optgroup>
     <optgroup label="Division heads">${Object.entries(p.divisionHeads || {}).map(([e, gs]) => opt(e, `${nameOf(e)} (${gs[0]}–${gs[gs.length - 1]})`)).join("")}</optgroup>
+    <optgroup label="Department heads">${Object.entries(p.departmentHeads || {}).map(([e, d]) => opt(e, `${nameOf(e)} (${d.name})`)).join("")}</optgroup>
     <optgroup label="Leadership">${p.leadership.map((e) => opt(e)).join("")}</optgroup>
     ${(p.librarians || []).length ? `<optgroup label="Librarian (certificates)">${p.librarians.map((e) => opt(e)).join("")}</optgroup>` : ""}
     <optgroup label="Class advisors">${advisorOpts.join("")}</optgroup>
@@ -288,7 +293,7 @@ function render() {
   const main = $("#main");
   if (!account) return signInScreen(main);
   if (S.loadErr) return errorScreen(main);
-  const views = { review: viewReview, certs: viewCerts, classes: viewClasses, newclass: viewNewClass, entry: viewEntry, advisor: viewAdvisor, ptc: viewPtc, awards: viewAwards, export: viewExport, setup: viewSetup, pde: viewPde, help: viewHelp, parent: viewParent, mygoals: viewMyGoals };
+  const views = { review: viewReview, certs: viewCerts, classes: viewClasses, newclass: viewNewClass, entry: viewEntry, advisor: viewAdvisor, dept: viewDept, ptc: viewPtc, awards: viewAwards, export: viewExport, setup: viewSetup, pde: viewPde, help: viewHelp, parent: viewParent, mygoals: viewMyGoals };
   if (!tabsFor().some(([k]) => k === ({ newclass: "classes", entry: S.back, ptc: "advisor" }[S.tab] || S.tab))) S.tab = tabsFor()[0][0];
   (views[S.tab] || viewClasses)(main);
   if (S.viewAs) main.insertAdjacentHTML("afterbegin", notice("warn", `<b>Preview:</b> you're seeing the app as <b>${esc(S.meName)}</b>. Read-only: nothing is saved. Their real access is set in SharePoint, so a few things may look slightly different for them. <a href="#" id="endPreview">Back to myself</a>`)
@@ -657,6 +662,43 @@ async function setSubmitted(rows, value) {
 }
 
 // ── Advisor view ─────────────────────────────────────────────
+function viewDept(main) {
+  const d = deptCfg();
+  if (!d) return (main.innerHTML = `<p class="muted">Not available.</p>`);
+  const grades = (d.grades || []).filter((g) => P().grades.includes(g));
+  const sel = S.deptGrade && grades.includes(S.deptGrade) ? S.deptGrade : "";
+  const gs = sel ? [sel] : grades;
+  const bands = P().scoreBands || [], cut = (bands[bands.length - 2] || { min: 60 }).min, lowLabel = (bands[bands.length - 1] || {}).label || "Needs support";
+  const order = (g) => P().grades.indexOf(g);
+  const classes = groupClasses(allMarks().filter((r) => gs.includes(classGradeOf(r)) && deptMatch(d, r.f.Subject)))
+    .sort((a, b) => order(a.grade) - order(b.grade) || a.subject.localeCompare(b.subject) || a.level.localeCompare(b.level));
+  const notStarted = S.subjects.filter((s) => gs.includes(s.f.Grade) && s.f.PrintsOnCard !== false && deptMatch(d, s.f.Title) && !classes.some((c) => c.grade === s.f.Grade && c.subject === s.f.Title))
+    .sort((a, b) => order(a.f.Grade) - order(b.f.Grade));
+  const stat = (c) => { const v = c.rows.filter((r) => !blank(r.f.Score)).map((r) => Number(r.f.Score));
+    return { n: v.length, avg: v.length ? Math.round(v.reduce((a, b) => a + b, 0) / v.length) : null, low: v.filter((x) => x < cut).length }; };
+  main.innerHTML = `
+    <h1>${esc(d.name)} department</h1>
+    <p class="lede"><span class="badge info">${esc(termLabel())}</span> Every ${esc(d.name)} class in the upper school, read only. Open a class to see its marks and remarks.</p>
+    <div class="row" style="margin-bottom:12px">
+      <label style="max-width:200px"><span>Grade</span><select id="deptGrade"><option value="">All upper school</option>${grades.map((g) => `<option ${g === sel ? "selected" : ""}>${esc(g)}</option>`).join("")}</select></label>
+    </div>
+    <div class="stats">
+      <div class="stat"><div class="k">Classes</div><div class="v">${classes.length}</div></div>
+      <div class="stat"><div class="k">Submitted</div><div class="v">${classes.filter((c) => c.submitted).length} / ${classes.length}</div></div>
+      <div class="stat"><div class="k">No class yet</div><div class="v">${notStarted.length}</div></div>
+    </div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Grade</th><th>Subject</th><th>Teacher</th><th class="num">Bobaes</th><th>Progress</th><th class="num">Average</th><th class="num">${esc(lowLabel)}</th><th></th></tr></thead>
+      <tbody>
+        ${classes.map((c, i) => { const t = stat(c); return `<tr><td>${esc(c.grade)}</td><td>${esc(subjectDisplay({ Subject: c.subject, ClassLevel: c.level }))}</td><td>${esc(c.byName)}</td>
+          <td class="num">${c.total}</td><td>${statusBadge(c)}</td><td class="num">${t.avg === null ? "–" : t.avg + "%"}</td><td class="num">${t.n ? t.low : "–"}</td>
+          <td><button class="btn small" data-open="${i}">Open</button></td></tr>`; }).join("")}
+        ${notStarted.map((s) => `<tr><td>${esc(s.f.Grade)}</td><td>${esc(s.f.Title)}</td><td class="muted">${esc(s.f.Teacher || "–")}</td><td></td><td><span class="badge bad">No class created</span></td><td></td><td></td><td></td></tr>`).join("")}
+        ${!classes.length && !notStarted.length ? `<tr><td colspan="8" class="muted">No ${esc(d.name)} classes yet.</td></tr>` : ""}
+      </tbody></table></div>`;
+  $("#deptGrade").onchange = (e) => { S.deptGrade = e.target.value; render(); };
+  $$("[data-open]").forEach((b) => (b.onclick = () => { const c = classes[Number(b.dataset.open)]; openClass(c.grade, c.subject, c.level, c.by, "dept"); }));
+}
 function viewAdvisor(main) {
   const grades = viewGrades();
   if (!S.advGrade || !grades.includes(S.advGrade)) S.advGrade = grades[0] || "";
@@ -1890,7 +1932,8 @@ async function applyPermissions(specs, staffEmails, out) {
   const reportTeam = [...new Set([...(P().reportTeam || []), ...P().admins, ...(P().principals || [])].map(lc))];
   const heads = Object.entries(P().divisionHeads || {}).map(([e, gs]) => [lc(e), gs]);
   const librarians = (P().librarians || []).map(lc);
-  const everyone = [...new Set([...staffEmails, ...P().grades.flatMap(advisorEmails), ...reportTeam, ...heads.map(([e]) => e), ...librarians])];
+  const deptHeads = Object.entries(P().departmentHeads || {}).map(([e, d]) => [lc(e), d.grades || []]);
+  const everyone = [...new Set([...staffEmails, ...P().grades.flatMap(advisorEmails), ...reportTeam, ...heads.map(([e]) => e), ...deptHeads.map(([e]) => e), ...librarians])];
   const userIds = {};
   const userId = async (e) => (userIds[e] = userIds[e] || (await sp("POST", "web/ensureuser", { logonName: claims(e) })).Id);
   for (const e of everyone) {
@@ -1917,6 +1960,8 @@ async function applyPermissions(specs, staffEmails, out) {
       extra = advs.length ? ` · advisors ${advs.join(", ")}: Design` : " · no advisor email set";
       const hs = heads.filter(([, gs]) => gs.includes(s.grade)).map(([e]) => e);
       if (hs.length) { await design(hs); extra += ` · division head ${hs.join(", ")}: Design`; }
+      const dh = deptHeads.filter(([, gs]) => gs.includes(s.grade)).map(([e]) => e);
+      if (dh.length) { await design(dh); extra += ` · department heads ${dh.join(", ")}: Design (the app shows them only their subject, read only)`; }
     }
     if (s.name === L.settings) {   // the go-ahead (Principal, division heads) is saved here
       const approvers = [...new Set([...(P().principals || []), ...heads.map(([e]) => e)].map(lc))];
