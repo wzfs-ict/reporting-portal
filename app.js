@@ -240,13 +240,13 @@ function tabsFor() {
   if (isLibrarian() && !teaches && !isReportTeam()) return [["certs", "Certificates"], ["help", "Help"]];
   // Leadership who don't teach (Chairman, Vice President): a read-only school dashboard, no advisor tools.
   if (isLeader() && !teaches && !isPrincipal() && !isReportTeam() && !headGrades().length) return [["review", "Dashboard"], ["pde", "PDE (in progress)"], ["help", "Help"]];
-  if (isReportTeam() && !teaches) return [["export", "Report cards"], ["certs", "Certificates"], ...(viewGrades().length ? [["advisor", "Advisor view"]] : []), ["help", "Help"]];
+  if (isReportTeam() && !teaches) return [["export", "Report cards"], ["transcript", "Transcripts"], ["certs", "Certificates"], ...(viewGrades().length ? [["advisor", "Advisor view"]] : []), ["help", "Help"]];
   const t = [["classes", "My classes"], ["awards", "Awards"]];
   if (reviewGrades().length) t.unshift(["review", canApprove() ? "Principal review" : `Review (${reviewGrades()[0]}–${reviewGrades().slice(-1)[0]})`]);
   if (isLibrarian() || isAdmin()) t.push(["certs", "Certificates"]);
   if (viewGrades().length) t.push(["advisor", headGrades().length && !advisorGrades().length && !isLeader() ? "Division view" : "Advisor view"]);
   if (deptCfg()) t.push(["dept", `${deptCfg().name} department`]);
-  if (isReportTeam()) t.push(["export", "Report cards"]);
+  if (isReportTeam()) t.push(["export", "Report cards"], ["transcript", "Transcripts"]);
   if (isAdmin()) t.push(["setup", "Setup"]);
   t.push(["pde", "PDE (in progress)"], ["help", "Help"]);
   return t;
@@ -293,7 +293,7 @@ function render() {
   const main = $("#main");
   if (!account) return signInScreen(main);
   if (S.loadErr) return errorScreen(main);
-  const views = { review: viewReview, certs: viewCerts, classes: viewClasses, newclass: viewNewClass, entry: viewEntry, advisor: viewAdvisor, dept: viewDept, ptc: viewPtc, awards: viewAwards, export: viewExport, setup: viewSetup, pde: viewPde, help: viewHelp, parent: viewParent, mygoals: viewMyGoals };
+  const views = { review: viewReview, certs: viewCerts, classes: viewClasses, newclass: viewNewClass, entry: viewEntry, advisor: viewAdvisor, dept: viewDept, ptc: viewPtc, awards: viewAwards, export: viewExport, transcript: viewTranscript, setup: viewSetup, pde: viewPde, help: viewHelp, parent: viewParent, mygoals: viewMyGoals };
   if (!tabsFor().some(([k]) => k === ({ newclass: "classes", entry: S.back, ptc: "advisor" }[S.tab] || S.tab))) S.tab = tabsFor()[0][0];
   (views[S.tab] || viewClasses)(main);
   if (S.viewAs) main.insertAdjacentHTML("afterbegin", notice("warn", `<b>Preview:</b> you're seeing the app as <b>${esc(S.meName)}</b>. Read-only: nothing is saved. Their real access is set in SharePoint, so a few things may look slightly different for them. <a href="#" id="endPreview">Back to myself</a>`)
@@ -698,6 +698,54 @@ function viewDept(main) {
       </tbody></table></div>`;
   $("#deptGrade").onchange = (e) => { S.deptGrade = e.target.value; render(); };
   $$("[data-open]").forEach((b) => (b.onclick = () => { const c = classes[Number(b.dataset.open)]; openClass(c.grade, c.subject, c.level, c.by, "dept"); }));
+}
+// Transcripts (admin team, prototype): one bobae's grades across every year, from the live marks lists plus the
+// "Transcript History" list (grades from before the portal). GPA appears only once config gpaScale is filled in.
+function viewTranscript(main) {
+  if (!isReportTeam()) return (main.innerHTML = `<p class="muted">Not available.</p>`);
+  const grades = P().grades.filter((g) => rosterFor(g).length);
+  const g = S.trGrade && grades.includes(S.trGrade) ? S.trGrade : grades[grades.length - 1] || "";
+  const list = rosterFor(g).sort((a, b) => (a.f.FullName || "").localeCompare(b.f.FullName || ""));
+  const id = S.trStudent && list.some((s) => s.f.Title === S.trStudent) ? S.trStudent : "";
+  const scale = P().gpaScale || [];
+  main.innerHTML = `
+    <h1>Transcripts <span class="badge warn">Prototype</span></h1>
+    <p class="lede">A bobae's grades across all years, for the transcript. This is a working preview, not an official document.</p>
+    <div class="row" style="margin-bottom:12px">
+      <label style="max-width:160px"><span>Grade</span><select id="trGrade">${grades.map((x) => `<option ${x === g ? "selected" : ""}>${esc(x)}</option>`).join("")}</select></label>
+      <label style="max-width:320px"><span>Bobae</span><select id="trStudent"><option value="">Choose…</option>${list.map((s) => `<option value="${esc(s.f.Title)}" ${s.f.Title === id ? "selected" : ""}>${esc(s.f.FullName)} · ${esc(s.f.Title)}</option>`).join("")}</select></label>
+      <button class="btn primary" id="trLoad" ${id ? "" : "disabled"}>Load transcript</button>
+    </div>
+    <div id="flash"></div>
+    ${scale.length ? "" : notice("warn", "The GPA scale isn't set yet (waiting for the school's official conversion table), so only marks are shown.")}
+    ${!S.lists[L.history] ? notice("", "The <b>Transcript History</b> list doesn't exist yet. Create it in Setup → step 1 (Check lists). Until then only this portal's own marks appear.") : ""}
+    <div id="trOut"></div>`;
+  $("#trGrade").onchange = (e) => { S.trGrade = e.target.value; S.trStudent = ""; render(); };
+  $("#trStudent").onchange = (e) => { S.trStudent = e.target.value; $("#trLoad").disabled = !e.target.value; $("#trOut").innerHTML = ""; };
+  $("#trLoad").onclick = async () => {
+    const sid = $("#trStudent").value; if (!sid) return;
+    $("#trLoad").disabled = true; $("#trOut").innerHTML = `<p class="muted">Reading every year's marks…</p>`;
+    try {
+      const live = (await Promise.all(P().grades.filter((x) => S.lists[marksListName(x)]).map(async (x) => (await readList(marksListName(x))).filter((r) => r.f.StudentID === sid && !blank(r.f.Score))
+        .map((r) => ({ year: r.f.AcademicYear, sem: r.f.Semester, grade: x, course: subjectDisplay(r.f), mark: roundScore(r.f.Score), period: r.f.Period || "Final", src: "Portal" }))))).flat();
+      const hist = (await readList(L.history)).filter((r) => r.f.StudentID === sid)
+        .map((r) => ({ year: r.f.AcademicYear, sem: r.f.Semester, grade: r.f.Grade, course: r.f.Course, mark: roundScore(r.f.Mark), period: "Final", src: r.f.Source || "Imported" }));
+      const all = [...hist, ...live].sort((a, b) => String(a.year).localeCompare(String(b.year)) || String(a.sem).localeCompare(String(b.sem)) || a.course.localeCompare(b.course));
+      const pts = (m) => { const b = scale.find((x) => Number(m) >= x.min); return b ? b.gpa : null; };
+      const letter = (m) => (scale.find((x) => Number(m) >= x.min) || {}).letter || "";
+      const terms = [...new Set(all.map((r) => `${r.year}|${r.sem}`))];
+      const gpaOf = (rows) => { const v = rows.map((r) => pts(r.mark)).filter((x) => x !== null); return v.length ? (v.reduce((a, b) => a + b, 0) / v.length).toFixed(2) : "–"; };
+      const finals = all.filter((r) => r.period === "Final");
+      $("#trOut").innerHTML = !all.length ? `<p class="muted">No grades found for this bobae yet.</p>` : `
+        <div class="table-wrap"><table>
+          <thead><tr><th>Year</th><th>Semester</th><th>Grade</th><th>Course</th><th class="num">Mark</th>${scale.length ? `<th>Letter</th><th class="num">GPA</th>` : ""}<th>Source</th></tr></thead>
+          <tbody>${all.map((r) => `<tr><td>${esc(r.year)}</td><td>${esc(r.sem)}</td><td>${esc(r.grade)}</td><td>${esc(r.course)}${r.period !== "Final" ? ` <span class="badge">${esc(r.period)}</span>` : ""}</td>
+            <td class="num">${esc(r.mark)}</td>${scale.length ? `<td>${esc(letter(r.mark))}</td><td class="num">${pts(r.mark) ?? "–"}</td>` : ""}<td class="small muted">${esc(r.src)}</td></tr>`).join("")}</tbody></table></div>
+        ${scale.length ? `<p><b>Cumulative GPA (unweighted, final grades only): ${gpaOf(finals)}</b></p><p class="small muted">${terms.map((t) => `${esc(t.replace("|", " "))}: ${gpaOf(finals.filter((r) => `${r.year}|${r.sem}` === t))}`).join(" · ")}</p>` : ""}
+        <p class="small muted">${all.some((r) => r.period !== "Final") ? "Midterm rows are shown for information and are not counted in the GPA. " : ""}Years before the portal appear once the Excel history has been imported.</p>`;
+    } catch (e) { $("#trOut").innerHTML = ""; flash("error", e.message); }
+    $("#trLoad").disabled = false;
+  };
 }
 function viewAdvisor(main) {
   const grades = viewGrades();
@@ -1422,6 +1470,8 @@ function listSpecs() {
     { name: L.subjects, kind: "read", cols: [T("Grade"), CH("SubjectType", ["I", "II"]), T("Teacher"), B("PrintsOnCard"), N("SortOrder")] },
     { name: L.catalogue, kind: "read", cols: [T("Category"), T("CertificateType"), CH("Season", ["Both", "Fall", "Spring"]), T("Criteria", true), B("AskMonth"), B("CustomTitle"), T("GivenBy"), B("Active"), N("SortOrder")] },
     { name: L.settings, kind: "read", cols: [T("Json", true)] },
+    // Final grades from before the portal, imported once from the Excel sheets. Admin team only (no staff access).
+    { name: L.history, kind: "private", cols: [T("StudentID"), T("FullName"), T("Grade"), T("AcademicYear"), T("Semester"), T("Course"), N("Mark", 0, 100, "one"), N("Credits"), T("Source")] },
     // Document library of small ID photos, <StudentID>.jpg. Staff read; bobaes never have access.
     { name: L.photos, kind: "read", library: true, cols: [] },
     { name: L.awards, kind: "entry", cols: [T("StudentID"), T("FullName"), T("CalledName"), T("Grade"), T("Category"), T("AwardName"), T("CertificateType"), T("Points"), T("Semester"), T("AcademicYear"), D("AwardDate"), T("AwardedBy"), B("Printed")] },
@@ -1569,7 +1619,7 @@ function viewSetup(main) {
       <details><summary class="small">Manual links</summary>
         <div class="table-wrap" style="margin-top:8px"><table><thead><tr><th>List</th><th>Should be</th><th></th></tr></thead><tbody>
         ${specs.filter((s) => S.lists[s.name]).map((s) => { const id = S.lists[s.name].id; return `<tr><td>${esc(s.name)}</td>
-          <td class="small">${s.kind === "read" ? "Staff: Read" : `Staff: Contribute + item-level "Read/edit items created by the user"${s.kind === "marks" ? `; advisors (${esc(advisorEmails(s.grade).join(", ") || "?")}): Design` : ""}`}</td>
+          <td class="small">${s.kind === "private" ? "Admin team only (no staff access)" : s.kind === "read" ? "Staff: Read" : `Staff: Contribute + item-level "Read/edit items created by the user"${s.kind === "marks" ? `; advisors (${esc(advisorEmails(s.grade).join(", ") || "?")}): Design` : ""}`}</td>
           <td class="small"><a target="_blank" rel="noopener" href="${esc(S.siteUrl)}/_layouts/15/user.aspx?obj=%7B${id}%7D,list&List=%7B${id}%7D">Permissions</a>
           ${s.kind !== "read" ? ` · <a target="_blank" rel="noopener" href="${esc(S.siteUrl)}/_layouts/15/advsetng.aspx?List=%7B${id}%7D">Advanced settings</a>` : ""}</td></tr>`; }).join("")}
         </tbody></table></div>
@@ -1950,7 +2000,7 @@ async function applyPermissions(specs, staffEmails, out) {
     await sp("POST", `${base}/breakroleinheritance(copyRoleAssignments=false,clearSubscopes=true)`);
     for (const g of [members, visitors]) if (g) await sp("POST", `${base}/roleassignments/getbyprincipalid(${g.Id})`, null, { "X-HTTP-Method": "DELETE" }).catch(() => {});
     await sp("POST", `${base}/roleassignments/addroleassignment(principalid=${owners.Id},roledefid=${role(5)})`);
-    await sp("POST", `${base}/roleassignments/addroleassignment(principalid=${group.Id},roledefid=${role(s.kind === "read" ? 2 : 3)})`);
+    if (s.kind !== "private") await sp("POST", `${base}/roleassignments/addroleassignment(principalid=${group.Id},roledefid=${role(s.kind === "read" ? 2 : 3)})`);
     const props = { __metadata: { type: "SP.List" }, EnableVersioning: true };
     // Item-level privacy: you read and edit only your own rows. Awards are readable by all staff (so a duplicate
     // award is caught whoever gave the first one) but still editable only by whoever gave them.
@@ -1980,7 +2030,7 @@ async function applyPermissions(specs, staffEmails, out) {
       await design(reportTeam); extra += ` · Admin team (${reportTeam.length}): Design`;
       if (s.name === L.comments && heads.length) { await design(heads.map(([e]) => e)); extra += " · division heads: Design"; }
     }
-    out(`✓ ${s.name}: Owners Full Control · ${C.staffGroup} ${s.kind === "read" ? "Read" : "Contribute, item-level"}${extra}`);
+    out(`✓ ${s.name}: Owners Full Control · ${s.kind === "private" ? "no staff access" : `${C.staffGroup} ${s.kind === "read" ? "Read" : "Contribute, item-level"}`}${extra}`);
   }
 }
 

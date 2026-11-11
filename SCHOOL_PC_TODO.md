@@ -24,6 +24,12 @@ Refresh the page with Ctrl+F5 first, so the browser loads the new code. No stude
 - [ ] Mae Parker (mparker@) is confirmed as Mae; check Randy Wang's account is randy@.
 - [x] Accepted: SharePoint gives them Design access to those marks lists, so the app shows only their subject, but SharePoint itself would show all subjects if they browsed the lists directly.
 
+## 1d. Transcripts (prototype, admin team)
+- [ ] Setup → step 1 **Check lists for new columns**: creates the **Transcript History** list. Then run Setup → **Permissions**: that list is admin team only (no staff access).
+- [ ] Open the **Transcripts** tab (admin team, or View as Ryan/Peter/Keating): pick a bobae, **Load transcript**. It should list this year's grades from the portal. The GPA scale is not set (`gpaScale` in `config.js`), so only marks show.
+- [ ] Once Keating, Ryan and Peter send the official marks-to-GPA table and a sample transcript: fill in `gpaScale` and build the Excel history import (Setup) for the current G12 and G11.
+- [ ] Keep all marks: never clear or delete old years' rows. They are the transcript source from now on.
+
 ## 2. Subjects: Setup → card 5 → "Planned subject changes"
 - [ ] Take a **Snapshot** first (Health check card).
 - [ ] Click **Apply**. In one go, this:

@@ -27,6 +27,7 @@ window.APP_CONFIG = {
     comments: "Advisor Comments",
     settings: "Reporting Settings",
     photos: "Student Photos",          // document library: <StudentID>.jpg, staff read only
+    history: "Transcript History",     // final grades from before the portal (imported from the Excel sheets); admin team only
     marksPrefix: "Marks ",
   },
   // SharePoint group that gets Contribute on the entry lists (Setup → Permissions)
@@ -246,6 +247,9 @@ window.APP_CONFIG = {
   // ── Scales ───────────────────────────────────────────────
   // At Midterm these subjects are optional: left off the PTC sheet (and "Not yet entered") unless the teacher entered something.
   ptcOptionalSubjects: /^(pe|p\.e\.)$|elective/i,
+  // Transcript GPA scale, highest first: { min: lowest mark, letter, gpa }. Leave empty until the school's official table is
+  // confirmed: the Transcripts tab then shows marks only and says the GPA scale is pending. Do not guess it.
+  gpaScale: [],
   // Scores are rounded to this many decimals when saved and shown (0 = whole numbers; 84.5 → 85).
   scoreDecimals: 0,
   // PTC sheet bar colours by score (highest first). Only the labels are shown, never the numbers.
