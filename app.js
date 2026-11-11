@@ -699,52 +699,142 @@ function viewDept(main) {
   $("#deptGrade").onchange = (e) => { S.deptGrade = e.target.value; render(); };
   $$("[data-open]").forEach((b) => (b.onclick = () => { const c = classes[Number(b.dataset.open)]; openClass(c.grade, c.subject, c.level, c.by, "dept"); }));
 }
-// Transcripts (admin team, prototype): one bobae's grades across every year, from the live marks lists plus the
-// "Transcript History" list (grades from before the portal). GPA appears only once config gpaScale is filled in.
+// ── Transcripts (admin team) ──
+// rows: [{ g: 9..12, year, s: 1|2, course, mark }]. Returns one block per grade with credit-weighted semester averages,
+// the year average ((S1+S2)/2) and GPA (year average x 4 / 100). A course with no mark in a semester is left out of it;
+// a course with no credit rule is listed in `missing` and its marks are not counted.
+function buildTranscript(rows, T0) {
+  const rules = (T0.credits || []).map(([p, c]) => [new RegExp(p, "i"), c]);
+  const creditOf = (n) => (rules.find(([re]) => re.test(n)) || [])[1] ?? null;
+  const out = {};
+  for (const r of rows) {
+    const b = (out[r.g] = out[r.g] || { year: r.year, map: new Map() });
+    const c = b.map.get(r.course) || { name: r.course, credit: creditOf(r.course), s1: null, s2: null };
+    c["s" + r.s] = r.mark; b.map.set(r.course, c);
+  }
+  for (const b of Object.values(out)) {
+    const isEl = (c) => /^elective/i.test(c.name);
+    let n = 0;
+    b.courses = [...b.map.values()].sort((a, c) => isEl(a) - isEl(c) || (c.credit ?? 0) - (a.credit ?? 0) || a.name.localeCompare(c.name))
+      .map((c) => ({ ...c, label: isEl(c) ? `Electives ${++n} (${c.name.replace(/^electives?\s*\d*\s*\(?/i, "").replace(/\)\s*$/, "")})` : (T0.names || {})[c.name] || c.name }));
+    b.missing = b.courses.filter((c) => c.credit === null).map((c) => c.name);
+    const avg = (k) => { const v = b.courses.filter((c) => c[k] !== null && c.credit !== null); const w = v.reduce((a, c) => a + c.credit, 0); return w ? v.reduce((a, c) => a + c[k] * c.credit, 0) / w : null; };
+    b.avg = [avg("s1"), avg("s2")];
+    b.partial = b.avg.some((x) => x === null);
+    const have = b.avg.filter((x) => x !== null);
+    b.yearAvg = have.length ? have.reduce((a, c) => a + c, 0) / have.length : null;
+    b.gpa = b.yearAvg === null ? null : (b.yearAvg * 4) / 100;
+  }
+  return out;
+}
+const trGradeNum = (g) => { const m = /^G(\d+)/.exec(g || ""); return m ? Number(m[1]) : null; };
+const trSem = (v) => (/^(s?1|fall)$/i.test(String(v).trim()) ? 1 : /^(s?2|spring)$/i.test(String(v).trim()) ? 2 : null);
+
+// One bobae's grades across every year (live marks lists + the "Transcript History" list), the editable extras
+// (gender, graduation date, yearly attendance) and the printable A4 transcript.
 function viewTranscript(main) {
   if (!isReportTeam()) return (main.innerHTML = `<p class="muted">Not available.</p>`);
+  const T0 = P().transcript || {};
   const grades = P().grades.filter((g) => rosterFor(g).length);
   const g = S.trGrade && grades.includes(S.trGrade) ? S.trGrade : grades[grades.length - 1] || "";
   const list = rosterFor(g).sort((a, b) => (a.f.FullName || "").localeCompare(b.f.FullName || ""));
   const id = S.trStudent && list.some((s) => s.f.Title === S.trStudent) ? S.trStudent : "";
-  const scale = P().gpaScale || [];
   main.innerHTML = `
-    <h1>Transcripts <span class="badge warn">Prototype</span></h1>
-    <p class="lede">A bobae's grades across all years, for the transcript. This is a working preview, not an official document.</p>
-    <div class="row" style="margin-bottom:12px">
-      <label style="max-width:160px"><span>Grade</span><select id="trGrade">${grades.map((x) => `<option ${x === g ? "selected" : ""}>${esc(x)}</option>`).join("")}</select></label>
-      <label style="max-width:320px"><span>Bobae</span><select id="trStudent"><option value="">Choose…</option>${list.map((s) => `<option value="${esc(s.f.Title)}" ${s.f.Title === id ? "selected" : ""}>${esc(s.f.FullName)} · ${esc(s.f.Title)}</option>`).join("")}</select></label>
-      <button class="btn primary" id="trLoad" ${id ? "" : "disabled"}>Load transcript</button>
+    <div class="no-print">
+      <h1>Transcripts</h1>
+      <p class="lede">The official High School Transcript (Grades 9–12): credit-weighted marks per semester, year averages and GPA. Print it on A4, then add the school seal and WASC stamp.</p>
+      <div class="row" style="margin-bottom:12px">
+        <label style="max-width:160px"><span>Grade</span><select id="trGrade">${grades.map((x) => `<option ${x === g ? "selected" : ""}>${esc(x)}</option>`).join("")}</select></label>
+        <label style="max-width:320px"><span>Bobae</span><select id="trStudent"><option value="">Choose…</option>${list.map((s) => `<option value="${esc(s.f.Title)}" ${s.f.Title === id ? "selected" : ""}>${esc(s.f.FullName)} · ${esc(s.f.Title)}</option>`).join("")}</select></label>
+        <button class="btn primary" id="trLoad" ${id ? "" : "disabled"}>Load transcript</button>
+      </div>
+      <div id="flash"></div>
+      ${!S.lists[L.transcriptInfo] || !S.lists[L.history] ? notice("warn", "The <b>Transcript Info</b> and <b>Transcript History</b> lists don't exist yet. Ask ICT to run Setup → step 1 (Check lists) and Permissions.") : ""}
     </div>
-    <div id="flash"></div>
-    ${scale.length ? "" : notice("warn", "The GPA scale isn't set yet (waiting for the school's official conversion table), so only marks are shown.")}
-    ${!S.lists[L.history] ? notice("", "The <b>Transcript History</b> list doesn't exist yet. Create it in Setup → step 1 (Check lists). Until then only this portal's own marks appear.") : ""}
     <div id="trOut"></div>`;
   $("#trGrade").onchange = (e) => { S.trGrade = e.target.value; S.trStudent = ""; render(); };
   $("#trStudent").onchange = (e) => { S.trStudent = e.target.value; $("#trLoad").disabled = !e.target.value; $("#trOut").innerHTML = ""; };
-  $("#trLoad").onclick = async () => {
+  const dmy = (d) => `${String(d.getDate()).padStart(2, "0")} ${d.toLocaleString("en-GB", { month: "short" }).toUpperCase()}. ${d.getFullYear()}`;
+  const load = async () => {
     const sid = $("#trStudent").value; if (!sid) return;
+    const st = studentById(sid).f;
     $("#trLoad").disabled = true; $("#trOut").innerHTML = `<p class="muted">Reading every year's marks…</p>`;
     try {
-      const live = (await Promise.all(P().grades.filter((x) => S.lists[marksListName(x)]).map(async (x) => (await readList(marksListName(x))).filter((r) => r.f.StudentID === sid && !blank(r.f.Score))
-        .map((r) => ({ year: r.f.AcademicYear, sem: r.f.Semester, grade: x, course: subjectDisplay(r.f), mark: roundScore(r.f.Score), period: r.f.Period || "Final", src: "Portal" }))))).flat();
-      const hist = (await readList(L.history)).filter((r) => r.f.StudentID === sid)
-        .map((r) => ({ year: r.f.AcademicYear, sem: r.f.Semester, grade: r.f.Grade, course: r.f.Course, mark: roundScore(r.f.Mark), period: "Final", src: r.f.Source || "Imported" }));
-      const all = [...hist, ...live].sort((a, b) => String(a.year).localeCompare(String(b.year)) || String(a.sem).localeCompare(String(b.sem)) || a.course.localeCompare(b.course));
-      const pts = (m) => { const b = scale.find((x) => Number(m) >= x.min); return b ? b.gpa : null; };
-      const letter = (m) => (scale.find((x) => Number(m) >= x.min) || {}).letter || "";
-      const terms = [...new Set(all.map((r) => `${r.year}|${r.sem}`))];
-      const gpaOf = (rows) => { const v = rows.map((r) => pts(r.mark)).filter((x) => x !== null); return v.length ? (v.reduce((a, b) => a + b, 0) / v.length).toFixed(2) : "–"; };
-      const finals = all.filter((r) => r.period === "Final");
-      $("#trOut").innerHTML = !all.length ? `<p class="muted">No grades found for this bobae yet.</p>` : `
-        <div class="table-wrap"><table>
-          <thead><tr><th>Year</th><th>Semester</th><th>Grade</th><th>Course</th><th class="num">Mark</th>${scale.length ? `<th>Letter</th><th class="num">GPA</th>` : ""}<th>Source</th></tr></thead>
-          <tbody>${all.map((r) => `<tr><td>${esc(r.year)}</td><td>${esc(r.sem)}</td><td>${esc(r.grade)}</td><td>${esc(r.course)}${r.period !== "Final" ? ` <span class="badge">${esc(r.period)}</span>` : ""}</td>
-            <td class="num">${esc(r.mark)}</td>${scale.length ? `<td>${esc(letter(r.mark))}</td><td class="num">${pts(r.mark) ?? "–"}</td>` : ""}<td class="small muted">${esc(r.src)}</td></tr>`).join("")}</tbody></table></div>
-        ${scale.length ? `<p><b>Cumulative GPA (unweighted, final grades only): ${gpaOf(finals)}</b></p><p class="small muted">${terms.map((t) => `${esc(t.replace("|", " "))}: ${gpaOf(finals.filter((r) => `${r.year}|${r.sem}` === t))}`).join(" · ")}</p>` : ""}
-        <p class="small muted">${all.some((r) => r.period !== "Final") ? "Midterm rows are shown for information and are not counted in the GPA. " : ""}Years before the portal appear once the Excel history has been imported.</p>`;
+      const live = (await Promise.all(P().grades.filter((x) => S.lists[marksListName(x)]).map(async (x) => (await readList(marksListName(x)))
+        .filter((r) => r.f.StudentID === sid && !blank(r.f.Score) && (r.f.Period || "Final") === "Final")
+        .map((r) => ({ g: trGradeNum(x), year: r.f.AcademicYear, s: trSem(r.f.Semester), course: subjectDisplay(r.f), mark: Number(r.f.Score) }))))).flat();
+      const hist = (await readList(L.history)).filter((r) => r.f.StudentID === sid && !blank(r.f.Mark))
+        .map((r) => ({ g: trGradeNum(r.f.Grade) ?? Number(r.f.Grade), year: r.f.AcademicYear, s: trSem(r.f.Semester), course: r.f.Course, mark: Number(r.f.Mark) }));
+      const infoItem = (await readList(L.transcriptInfo)).find((r) => r.f.StudentID === sid);
+      let att = {}; try { att = JSON.parse(infoItem?.f.Attendance || "{}"); } catch (_) {}
+      const rows = [...hist, ...live].filter((r) => r.g >= 9 && r.g <= 12 && r.s);
+      draw(sid, st, buildTranscript(rows, T0), { gender: infoItem?.f.Gender || "", grad: infoItem?.f.GraduationDate || "", att, item: infoItem });
     } catch (e) { $("#trOut").innerHTML = ""; flash("error", e.message); }
     $("#trLoad").disabled = false;
+  };
+  $("#trLoad").onclick = load;
+  const draw = (sid, st, tr, info) => {
+    const one = (v) => (v === null || v === undefined ? "–" : v.toFixed(1));
+    const grs = [9, 10, 11, 12].filter((n) => tr[n]);
+    const warn = [];
+    for (const n of grs) { if (tr[n].missing.length) warn.push(`Grade ${n}: no credit value for ${tr[n].missing.map(esc).join(", ")}. Those marks are not counted, so the average and GPA are not final. Add a rule in config.js (transcript.credits).`);
+      else if (tr[n].partial) warn.push(`Grade ${n} (${esc(tr[n].year)}): only one semester has marks so far, so its GPA is provisional.`); }
+    if (!info.gender) warn.push("Gender is not set."); if (!info.grad) warn.push("Graduation date is not set.");
+    const block = (n) => { const b = tr[n]; return `<div class="tr-blk"><div class="tr-gh"><b>Grade ${n}</b><span>Year ${esc(b.year || "")}</span></div>
+      <table class="tr-t"><thead><tr><th>Subject</th><th>Credit</th><th>S1</th><th>S2</th></tr></thead><tbody>
+      ${b.courses.map((c) => `<tr><td>${esc(c.label)}</td><td>${c.credit === null ? "?" : c.credit}</td><td>${c.s1 === null ? "N/A" : Math.round(c.s1)}</td><td>${c.s2 === null ? "N/A" : Math.round(c.s2)}</td></tr>`).join("")}
+      <tr><td colspan="4" class="tr-nf">xx nothing follows xx</td></tr>
+      <tr class="tr-tot"><td colspan="2">Totals:</td><td>${one(b.avg[0])}</td><td>${one(b.avg[1])}</td></tr></tbody></table></div>`; };
+    const att = (n, k) => esc(info.att[n]?.[k] ?? "");
+    const dob = String(st.DOB || "").slice(0, 10).replace(/-/g, "/");
+    const date = $("#trDate")?.value || dmy(new Date());
+    $("#trOut").innerHTML = `
+      <div class="no-print card">
+        <h3>Details for this transcript</h3>
+        <div class="row">
+          <label style="max-width:140px"><span>Gender</span><select id="trGender"><option value=""></option><option ${info.gender === "Male" ? "selected" : ""}>Male</option><option ${info.gender === "Female" ? "selected" : ""}>Female</option></select></label>
+          <label style="max-width:190px"><span>Graduation date</span><input id="trGrad" type="date" value="${esc(info.grad)}"></label>
+          <label style="max-width:190px"><span>Date issued</span><input id="trDate" value="${esc(date)}"></label>
+        </div>
+        <div class="table-wrap" style="margin-top:8px"><table><thead><tr><th>Attendance</th>${[9, 10, 11, 12].map((n) => `<th>Grade ${n}</th>`).join("")}</tr></thead><tbody>
+          ${[["p", "Present"], ["a", "Authorized absence"], ["x", "Absent"]].map(([k, l]) => `<tr><td>${l}</td>${[9, 10, 11, 12].map((n) => `<td><input class="trAtt" data-n="${n}" data-k="${k}" inputmode="numeric" style="width:70px" value="${att(n, k)}"></td>`).join("")}</tr>`).join("")}
+        </tbody></table></div>
+        <p style="margin-top:8px"><button class="btn" id="trSave">Save details</button> <button class="btn primary" id="trPrint" ${warn.some((w) => w.includes("no credit")) ? "disabled" : ""}>Print transcript</button></p>
+        ${warn.map((w) => notice("warn", w)).join("")}
+      </div>
+      ${grs.length ? "" : `<p class="muted no-print">No Grade 9–12 final marks found for this bobae yet.</p>`}
+      <div class="tr-page">
+        <div class="tr-head"><div class="tr-school">${esc(T0.school)}</div><div class="tr-title">${esc(T0.title)}</div>
+          <div class="tr-sm">${esc(T0.address)}</div><div class="tr-sm">${esc(T0.contact)}</div><div class="tr-sm">${esc(T0.web)}</div></div>
+        <h5>1. Student Information</h5>
+        <table class="tr-info"><tr><th>Name</th><th>Gender</th><th>DOB</th></tr><tr><td>${esc(st.FullName)}${st.CalledName ? ` (${esc(st.CalledName)})` : ""}</td><td id="trGenderCell">${esc(info.gender)}</td><td>${esc(dob)}</td></tr>
+          <tr><th colspan="3">Graduation Date</th></tr><tr><td colspan="3" id="trGradCell">${esc(info.grad)}</td></tr></table>
+        <h5>2. Student Academic History</h5>
+        <div class="tr-grid">${grs.map(block).join("")}</div>
+        <h5>3. Summary of Academic Record</h5>
+        <div class="tr-sum"><table class="tr-t"><thead><tr><th>ATTENDANCE</th>${[9, 10, 11, 12].map((n) => `<th>${n}</th>`).join("")}</tr></thead><tbody>
+          ${[["p", "Present"], ["a", "Authorized Absence"], ["x", "Absent"]].map(([k, l]) => `<tr><td>${l}</td>${[9, 10, 11, 12].map((n) => `<td>${att(n, k)}</td>`).join("")}</tr>`).join("")}</tbody></table>
+          <table class="tr-t"><thead><tr><th>ACADEMIC RECORD</th>${[9, 10, 11, 12].map((n) => `<th>${n}</th>`).join("")}</tr></thead><tbody>
+          <tr><td>Average (Percent %)</td>${[9, 10, 11, 12].map((n) => `<td>${tr[n] && !tr[n].missing.length ? one(tr[n].yearAvg) : ""}</td>`).join("")}</tr>
+          <tr><td>GPA (Scale 4.0)</td>${[9, 10, 11, 12].map((n) => `<td>${tr[n] && !tr[n].missing.length ? one(tr[n].gpa) : ""}</td>`).join("")}</tr></tbody></table></div>
+        <h5>4. Grading Scale Conversion</h5>
+        <table class="tr-t tr-scale"><thead><tr><th>Score</th><th>IGCSE Grade Equivalent</th><th>A Level Grade Equivalent</th><th>Comment</th></tr></thead><tbody>
+          ${(T0.scale || []).map((r) => `<tr>${r.map((c) => `<td>${esc(c)}</td>`).join("")}</tr>`).join("")}</tbody></table>
+        <div class="tr-sign">${T0.registrar?.sig ? `<img src="${esc(T0.registrar.sig)}" alt="">` : ""}<div><b>${esc(T0.registrar?.name || "")}</b></div><div>${esc(T0.registrar?.title || "")}</div></div>
+        <div class="tr-date">${esc(date)}</div>
+        <div class="tr-foot"><b>${esc(T0.school)}</b>${(T0.footer || []).map((f) => `<div>${esc(f)}</div>`).join("")}</div>
+      </div>`;
+    $("#trPrint").onclick = () => window.print();
+    $("#trDate").oninput = () => { $(".tr-date").textContent = $("#trDate").value; };
+    $("#trSave").onclick = async () => {
+      const a = {}; $$(".trAtt").forEach((i) => { const v = i.value.trim(); if (v !== "") (a[i.dataset.n] = a[i.dataset.n] || {})[i.dataset.k] = Number(v); });
+      const fields = { Title: sid, StudentID: sid, FullName: st.FullName, Gender: $("#trGender").value, GraduationDate: $("#trGrad").value, Attendance: JSON.stringify(a) };
+      try {
+        if (!S.lists[L.transcriptInfo]) throw new Error("The Transcript Info list doesn't exist yet. Ask ICT to run Setup → step 1.");
+        if (info.item) await graph("PATCH", `${itemsUrl(L.transcriptInfo)}/${info.item.id}/fields`, fields); else await graph("POST", itemsUrl(L.transcriptInfo), { fields });
+        flash("ok", "Saved."); load();
+      } catch (e) { flash("error", e.message); }
+    };
   };
 }
 function viewAdvisor(main) {
@@ -1471,6 +1561,7 @@ function listSpecs() {
     { name: L.catalogue, kind: "read", cols: [T("Category"), T("CertificateType"), CH("Season", ["Both", "Fall", "Spring"]), T("Criteria", true), B("AskMonth"), B("CustomTitle"), T("GivenBy"), B("Active"), N("SortOrder")] },
     { name: L.settings, kind: "read", cols: [T("Json", true)] },
     // Final grades from before the portal, imported once from the Excel sheets. Admin team only (no staff access).
+    { name: L.transcriptInfo, kind: "private", cols: [T("StudentID"), T("FullName"), CH("Gender", ["Male", "Female"]), T("GraduationDate"), T("Attendance", true)] },
     { name: L.history, kind: "private", cols: [T("StudentID"), T("FullName"), T("Grade"), T("AcademicYear"), T("Semester"), T("Course"), N("Mark", 0, 100, "one"), N("Credits"), T("Source")] },
     // Document library of small ID photos, <StudentID>.jpg. Staff read; bobaes never have access.
     { name: L.photos, kind: "read", library: true, cols: [] },

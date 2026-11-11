@@ -24,10 +24,13 @@ Refresh the page with Ctrl+F5 first, so the browser loads the new code. No stude
 - [ ] Mae Parker (mparker@) is confirmed as Mae; check Randy Wang's account is randy@.
 - [x] Accepted: SharePoint gives them Design access to those marks lists, so the app shows only their subject, but SharePoint itself would show all subjects if they browsed the lists directly.
 
-## 1d. Transcripts (prototype, admin team)
-- [ ] Setup → step 1 **Check lists for new columns**: creates the **Transcript History** list. Then run Setup → **Permissions**: that list is admin team only (no staff access).
-- [ ] Open the **Transcripts** tab (admin team, or View as Ryan/Peter/Keating): pick a bobae, **Load transcript**. It should list this year's grades from the portal. The GPA scale is not set (`gpaScale` in `config.js`), so only marks show.
-- [ ] Once Keating, Ryan and Peter send the official marks-to-GPA table and a sample transcript: fill in `gpaScale` and build the Excel history import (Setup) for the current G12 and G11.
+## 1d. Transcripts (Transcripts tab, admin team)
+- [ ] Setup → step 1 **Check lists for new columns**: creates **Transcript Info** and **Transcript History**. Then Setup → **Permissions**: both lists are admin team only (no staff access).
+- [ ] Open **Transcripts** (as Glen, or View as Ryan Park): pick a bobae, **Load transcript**. This semester's grades appear once the Final period is open; midterm marks are never used.
+- [ ] Ryan enters **Gender**, **Graduation date** (decided in spring) and the yearly **attendance** (from his Excel) on the page and clicks **Save details**.
+- [ ] **Credits:** "Mathematics" and "Pure Mathematics 1" have no credit rule yet, so the page flags them and holds back that year's GPA and Print. Ryan decides their credits, then add the rule to `transcript.credits` in `config.js`. Also check that the other rules (elective 0.25, AS/A2 2, IGCSE 1, PE 0.5, PSHE/Art/Careers 0.25) match his document.
+- [ ] Print one transcript to A4 and compare with Ryan's Excel version: same layout, one page, signature in place, room for the WASC stamp and school seal.
+- [ ] **Earlier years for current G12 and G11:** import into the Transcript History list from the Excel sheets (Spring 2026) and the report card PDFs (Fall 2025 and before). Course, credit, S1/S2 mark and the grade/year are needed. An import step will be built once Ryan shares the files.
 - [ ] Keep all marks: never clear or delete old years' rows. They are the transcript source from now on.
 
 ## 2. Subjects: Setup → card 5 → "Planned subject changes"

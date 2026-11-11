@@ -28,6 +28,7 @@ window.APP_CONFIG = {
     settings: "Reporting Settings",
     photos: "Student Photos",          // document library: <StudentID>.jpg, staff read only
     history: "Transcript History",     // final grades from before the portal (imported from the Excel sheets); admin team only
+    transcriptInfo: "Transcript Info",  // per bobae: gender, graduation date, yearly attendance; admin team only
     marksPrefix: "Marks ",
   },
   // SharePoint group that gets Contribute on the entry lists (Setup → Permissions)
@@ -247,9 +248,25 @@ window.APP_CONFIG = {
   // ── Scales ───────────────────────────────────────────────
   // At Midterm these subjects are optional: left off the PTC sheet (and "Not yet entered") unless the teacher entered something.
   ptcOptionalSubjects: /^(pe|p\.e\.)$|elective/i,
-  // Transcript GPA scale, highest first: { min: lowest mark, letter, gpa }. Leave empty until the school's official table is
-  // confirmed: the Transcripts tab then shows marks only and says the GPA scale is pending. Do not guess it.
-  gpaScale: [],
+  // Official High School Transcript (Transcripts tab, admin team). GPA = year average x 4 / 100, where each semester's
+  // average is credit-weighted over the courses that have a mark (S1 = Fall, S2 = Spring; N/A courses are left out).
+  transcript: {
+    school: "WEIHAI ZHONGSHI FOREIGN SCHOOL",
+    title: "Official High School Transcript",
+    address: "42 East Jiangsu Road, New Industrial District, Weihai, Shandong, China 264211",
+    contact: "TEL: +86-631-599-6381      E-MAIL: wzfs@zhongshischool.org",
+    web: "www.zhongshischool.org",
+    registrar: { name: "Ryan Park", title: "Registrar", sig: "cert/sig-registrar.png" },
+    footer: ["Transcript not valid without school seal", "Fully Accredited by the Accrediting Commission for Schools, Western Association of Schools and Colleges"],
+    // Credit by course name, first match wins. A course that matches none is flagged and holds back that year's GPA.
+    // Taken from the sample transcript: to be confirmed with the Registrar.
+    credits: [["^elective", 0.25], ["^(as|a2) ", 2], ["^igcse", 1], ["^academic english", 1], ["chinese|hsk", 1],
+      ["^(pe|p\\.e\\.)$|physical education", 0.5], ["^(pshe|wellbeing|well-being|art|careers?)\\b", 0.25]],
+    names: { "PE": "PE (Physical Education)", "P.E.": "PE (Physical Education)" },
+    scale: [["95-100", "A*", "A*", "Outstanding"], ["90-94", "A", "A", "Excellent"], ["85-89", "B", "B", "Very Good"], ["80-84", "B", "C", "Good"],
+      ["75-79", "C", "D", "Average"], ["70-74", "C", "E", "Below Average"], ["60-69", "D", "U", "Below Average"], ["50-59", "E", "U", "Well Below Average"],
+      ["40-49", "F", "U", ""], ["30-39", "G", "U", ""], ["Below 30", "U", "U", ""]],
+  },
   // Scores are rounded to this many decimals when saved and shown (0 = whole numbers; 84.5 → 85).
   scoreDecimals: 0,
   // PTC sheet bar colours by score (highest first). Only the labels are shown, never the numbers.
