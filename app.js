@@ -967,7 +967,9 @@ function ptcStudents(g) {
   const opt = P().ptcOptionalSubjects;
   // Type II subjects (Careers, Wellbeing, PE, electives…) and the optional ones above stay off the midterm sheet unless something was entered.
   // A missing Type I subject is still listed under "Not yet entered".
-  const skip = (r) => isMidterm() && (r.f.SubjectType === "II" || (opt && opt.test(r.f.Subject || ""))) && blank(r.f.Score) && blank(r.f.Behaviour) && !(r.f.Remark || "").trim() && !r.f.Concern;
+  // Type comes from the Subjects list as well as the row: a class made before a type was corrected keeps the old one.
+  const typeII = (r) => r.f.SubjectType === "II" || S.subjects.some((x) => x.f.Grade === g && x.f.Title === r.f.Subject && x.f.SubjectType === "II");
+  const skip = (r) => isMidterm() && (typeII(r) || (opt && opt.test(r.f.Subject || ""))) && blank(r.f.Score) && blank(r.f.Behaviour) && !(r.f.Remark || "").trim() && !r.f.Concern;
   return rosterFor(g).map((st) => {
     const id = st.f.Title;
     const subj = rows.filter((r) => r.f.StudentID === id && (!core || core.includes(lc(r.f.Subject))) && !skip(r))
