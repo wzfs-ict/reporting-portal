@@ -965,7 +965,9 @@ function ptcStudents(g) {
   // Primary PTC sheets show only the core subjects (Chinese, English, Maths, Science, and Accelerated English where taught).
   const core = isPrimary(g) ? ((P().primary || {}).ptcSubjects || []).map(lc) : null;
   const opt = P().ptcOptionalSubjects;
-  const skip = (r) => isMidterm() && opt && opt.test(r.f.Subject || "") && blank(r.f.Score) && blank(r.f.Behaviour) && !(r.f.Remark || "").trim() && !r.f.Concern;
+  // Type II subjects (Careers, Wellbeing, PE, electives…) and the optional ones above stay off the midterm sheet unless something was entered.
+  // A missing Type I subject is still listed under "Not yet entered".
+  const skip = (r) => isMidterm() && (r.f.SubjectType === "II" || (opt && opt.test(r.f.Subject || ""))) && blank(r.f.Score) && blank(r.f.Behaviour) && !(r.f.Remark || "").trim() && !r.f.Concern;
   return rosterFor(g).map((st) => {
     const id = st.f.Title;
     const subj = rows.filter((r) => r.f.StudentID === id && (!core || core.includes(lc(r.f.Subject))) && !skip(r))
