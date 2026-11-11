@@ -1796,7 +1796,7 @@ function viewSetup(main) {
 // if both have entries, the moving row is left alone and counted as a clash.
 async function renameSubject(g, from, to, level) {
   const all = (await Promise.all(P().grades.filter((x) => S.lists[marksListName(x)])
-    .map(async (x) => (await readList(marksListName(x))).map((r) => ({ ...r, list: x }))))).flat().filter((r) => classGradeOf(r) === g);
+    .map(async (x) => (await readList(marksListName(x))).map((r) => ({ ...r, list: x }))))).flat().filter((r) => classGradeOf(r) === g && r.f.AcademicYear === P().academicYear);   // this year only: earlier years keep the names printed on their report cards and transcripts
   const key = (r, lvl) => [r.f.StudentID, lc(lvl), r.f.AcademicYear, r.f.Semester, r.f.Period].join("|");
   const empty = (r) => blank(r.f.Score) && blank(r.f.Behaviour) && !(r.f.Remark || "").trim() && !r.f.Concern;
   const have = new Map(all.filter((r) => r.f.Subject === to).map((r) => [key(r, r.f.ClassLevel), r]));
