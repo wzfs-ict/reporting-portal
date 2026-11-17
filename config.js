@@ -103,7 +103,7 @@ window.APP_CONFIG = {
     ...["AS Mathematics (Pure Math 1 & Probability and Statistics 1)", "AS Mathematics (Probability and Statistics 1)", "Mathematics"]
       .map((add) => ({ grade: "G11", add, type: "I", why: "Beverly: G11 maths" })),
     ...["A2 Mathematics (Pure Math 3 & Probability and Statistics 1)", "Pure Mathematics 1", "Mathematics"]
-      .map((add) => ({ grade: "G12", add, type: "I", why: "Beverly: G12 maths" })),
+      .map((add) => ({ grade: "G12", add, type: "II", why: "Beverly: G12 maths" })),
     { grade: "G11", hide: "A2 Business Studies", why: "Beverly: no A2 Business this year" },
     { grade: "G12", hide: "A2 Business Studies", why: "Beverly: no A2 Business this year" },
     ...["G1", "G2", "G3", "G4", "G5", "ZSA"].map((grade) => ({ grade, add: "Elective (Science Investigations)", type: "II", why: "Whole school" })),
@@ -292,4 +292,14 @@ window.APP_CONFIG = {
     "External Award",
     "Service Points",                // goes to the service points section of the report card
   ],
+  // Plain guide to picking a type. Shown as a hint on the Awards tab and as a table on the Setup catalogue page.
+  certificateTypeGuide: {
+    "Certificate of Achievement": "For strong academic results. Examples: Honours, High Honours, Top Student, IGCSE results.",
+    "Certificate of Distinction": "For something exceptional and rare - the highest level the school gives.",
+    "Certificate of Recognition": "For effort, improvement, service, behaviour, subject awards, and roles. The everyday certificate.",
+    "Certificate of Participation": "For taking part in an event where participation itself is the award.",
+    "Teacher Award": "For awards given to staff, not students.",
+    "External Award": "For awards decided by an outside organization.",
+    "Service Points": "Not a certificate. Points print in the service section of the report card.",
+  },
 };
