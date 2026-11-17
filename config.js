@@ -137,7 +137,6 @@ window.APP_CONFIG = {
       "Purpose-Driven Education Goal Master Award": { after: "for consistently achieving their goals." },
       "Purpose-Driven Education Excellence Award": { after: "for exceptional progress towards their goals." },
       "Purpose-Driven Education Resilience Award": { after: "for perseverance through repeated challenges." },
-      "Subject Teacher Award": { type: "Recognition" },
       "English Token": { type: "Recognition", title: "English Token Award",
         afterByLevel: { Gold: "for achieving a 100% token score.", Silver: "for achieving a token score above 98%.", Bronze: "for achieving a token score above 95%." } },
       // Landscape graduation awards. The (quality) in the name goes in the lead line, e.g. exemplary “Academic Effort”.
@@ -293,13 +292,65 @@ window.APP_CONFIG = {
     "Service Points",                // goes to the service points section of the report card
   ],
   // Plain guide to picking a type. Shown as a hint on the Awards tab and as a table on the Setup catalogue page.
+  // Wording follows "End of the semester Awards - Criterea.docx" (Staff Resources > Policies & Rubrics).
   certificateTypeGuide: {
-    "Certificate of Achievement": "For strong academic results. Examples: Honours, High Honours, Top Student, IGCSE results.",
-    "Certificate of Distinction": "For something exceptional and rare - the highest level the school gives.",
-    "Certificate of Recognition": "For effort, improvement, service, behaviour, subject awards, and roles. The everyday certificate.",
-    "Certificate of Participation": "For taking part in an event where participation itself is the award.",
-    "Teacher Award": "For awards given to staff, not students.",
-    "External Award": "For awards decided by an outside organization.",
-    "Service Points": "Not a certificate. Points print in the service section of the report card.",
+    "Certificate of Achievement": "For academic results. Examples: Honours (all scores above 85%), High Honours (all scores above 90%), IGCSE and AS results.",
+    "Certificate of Distinction": "For the Top Student Award only - highest average in the class, above 90%.",
+    "Certificate of Recognition": "The normal certificate. For behaviour, effort, roles, monthly awards, and competition placements. Examples: Green Cards, Core Value Award, Excellent Behaviour, class officers.",
+    "Certificate of Participation": "For taking part in an event, without a placement. Example: UNESCO Fair.",
+    "Teacher Award": "For awards a teacher chooses for one student. Examples: Best in English, Most Improved in Maths, Most Behaved.",
+    "External Award": "For awards decided by an outside organization. Example: the Korean Consulate award at graduation.",
+    "Service Points": "Not a certificate. Points print in the service section of the report card. Examples: ZIP Magazine, Student Council officers.",
   },
 };
+
+// ── Certificate type guide (temporary runtime patch, 17 Nov 2026) ────────────
+// Same result as the app.js patch app-cert-type-guide.patch, done from here
+// because app.js (206 KB) could not be pushed from the assistant session.
+// It checks for the elements the real patch adds, so once that patch is
+// applied to app.js this block does nothing and can be deleted.
+(function () {
+  function guide() { return window.APP_CONFIG.certificateTypeGuide || {}; }
+  function addHint() {
+    var ty = document.getElementById("awType");
+    if (!ty || document.getElementById("awTypeHint")) return;
+    var label = ty.closest("label");
+    if (!label) return;
+    var hint = document.createElement("p");
+    hint.id = "awTypeHint";
+    hint.className = "small muted";
+    hint.style.marginTop = "4px";
+    label.after(hint);
+    var update = function () { hint.textContent = guide()[ty.value] || ""; };
+    ty.addEventListener("change", update);
+    var nm = document.getElementById("awName");
+    if (nm) nm.addEventListener("change", update);
+    update();
+  }
+  function addTable() {
+    var add = document.getElementById("naAdd");
+    if (!add) return;
+    var summaries = document.querySelectorAll("summary");
+    for (var i = 0; i < summaries.length; i++) {
+      if (summaries[i].textContent.indexOf("Which certificate type") !== -1) return;
+    }
+    var cfg = window.APP_CONFIG;
+    var rows = (cfg.certificateTypes || []).map(function (t) {
+      return '<tr><td style="white-space:nowrap"><b>' + t + "</b></td><td>" + (guide()[t] || "") + "</td></tr>";
+    }).join("");
+    var box = document.createElement("details");
+    box.className = "small";
+    box.style.marginTop = "10px";
+    box.innerHTML = "<summary><b>Which certificate type should I pick?</b></summary>" +
+      '<div class="table-wrap" style="margin-top:6px"><table><tbody>' + rows + "</tbody></table></div>";
+    var container = add.closest("div");
+    if (container && container.parentElement) container.parentElement.after(box);
+  }
+  function scan() { addHint(); addTable(); }
+  function init() {
+    scan();
+    new MutationObserver(scan).observe(document.body, { childList: true, subtree: true });
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
+  else init();
+})();
