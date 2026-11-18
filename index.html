@@ -132,7 +132,7 @@
   .stu-pick input { margin: 0; flex: none; }
   .stu-photo { margin-bottom: 6px; }
   .ptc-name { display: flex; align-items: center; gap: 12px; }
-  .ptc-photo { width: 64px; height: 80px; object-fit: cover; border-radius: 6px; }
+  .ptc-photo { width: calc(64px * var(--ptc-scale, 1)); height: calc(80px * var(--ptc-scale, 1)); object-fit: cover; border-radius: 6px; }
   .two-col { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr) 340px; align-items: start; }
   @media (max-width: 900px) { .two-col { grid-template-columns: 1fr; } .award-panel { position: static; } }
 
@@ -142,20 +142,20 @@
 
   /* PTC sheets — A4 portrait, one page per bobae. Always light, like paper. */
   .ptc-wrap { display: flex; flex-direction: column; gap: 18px; align-items: center; }
-  .ptc-page { width: 210mm; min-height: 297mm; padding: 12mm 13mm 10mm; background: #fff; color: #1d2430; box-shadow: 0 1px 6px rgba(0,0,0,.18);
-    display: flex; flex-direction: column; font-size: 12.5px; line-height: 1.45; }
-  .ptc-head { display: flex; justify-content: space-between; gap: 10px; border-bottom: 3px solid #0b1046; padding-bottom: 5px; font-size: 10.5px; color: #0b1046; font-weight: 600; }
-  .ptc-name { font-size: 26px; font-weight: 700; color: #0b1046; margin: 8px 0 4px; }
-  .ptc-name small { font-size: 12px; font-weight: 400; color: #5d6675; margin-left: 8px; }
-  .ptc-note { background: #fbf0dc; border-left: 4px solid #9a5b00; padding: 6px 10px; margin: 4px 0 6px; font-weight: 600; color: #6b4000; }
-  .ptc-body { display: grid; grid-template-columns: minmax(0, 1fr) 62mm; gap: 6mm; flex: 1; }
-  .ptc-page h4 { font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: #0b1046; border-bottom: 1px solid #c8cdd6; margin: 10px 0 5px; padding-bottom: 2px; }
-  .ptc-page p { margin: 0 0 5px; }
+  .ptc-page { width: 210mm; min-height: 297mm; padding: calc(12mm * var(--ptc-scale, 1)) calc(13mm * var(--ptc-scale, 1)) calc(10mm * var(--ptc-scale, 1)); background: #fff; color: #1d2430; box-shadow: 0 1px 6px rgba(0,0,0,.18);
+    display: flex; flex-direction: column; font-size: calc(12.5px * var(--ptc-scale, 1)); line-height: 1.45; }
+  .ptc-head { display: flex; justify-content: space-between; gap: 10px; border-bottom: 3px solid #0b1046; padding-bottom: calc(5px * var(--ptc-scale, 1)); font-size: calc(10.5px * var(--ptc-scale, 1)); color: #0b1046; font-weight: 600; }
+  .ptc-name { font-size: calc(26px * var(--ptc-scale, 1)); font-weight: 700; color: #0b1046; margin: calc(8px * var(--ptc-scale, 1)) 0 calc(4px * var(--ptc-scale, 1)); }
+  .ptc-name small { font-size: calc(12px * var(--ptc-scale, 1)); font-weight: 400; color: #5d6675; margin-left: calc(8px * var(--ptc-scale, 1)); }
+  .ptc-note { background: #fbf0dc; border-left: 4px solid #9a5b00; padding: calc(6px * var(--ptc-scale, 1)) calc(10px * var(--ptc-scale, 1)); margin: calc(4px * var(--ptc-scale, 1)) 0 calc(6px * var(--ptc-scale, 1)); font-weight: 600; color: #6b4000; }
+  .ptc-body { display: grid; grid-template-columns: minmax(0, 1fr) 62mm; gap: calc(6mm * var(--ptc-scale, 1)); flex: 1; min-height: 0; }
+  .ptc-page h4 { font-size: calc(10.5px * var(--ptc-scale, 1)); letter-spacing: .06em; text-transform: uppercase; color: #0b1046; border-bottom: 1px solid #c8cdd6; margin: calc(10px * var(--ptc-scale, 1)) 0 calc(5px * var(--ptc-scale, 1)); padding-bottom: calc(2px * var(--ptc-scale, 1)); }
+  .ptc-page p { margin: 0 0 calc(5px * var(--ptc-scale, 1)); }
   .ptc-miss { color: #9a5b00; }
-  .ptc-scores { width: 100%; border-collapse: collapse; font-size: 12px; }
-  .ptc-scores td { padding: 4px 4px; border: 0; border-bottom: 1px solid #eceff3; color: #1d2430; }
+  .ptc-scores { width: 100%; border-collapse: collapse; font-size: calc(12px * var(--ptc-scale, 1)); }
+  .ptc-scores td { padding: calc(4px * var(--ptc-scale, 1)); border: 0; border-bottom: 1px solid #eceff3; color: #1d2430; }
   .ptc-scores td.bar { width: 42%; height: auto; margin: 0; border-radius: 0; background: none; overflow: visible; }
-  .ptc-scores td.bar i, .ptc-key i { display: block; height: 9px; border-radius: 3px; background: #c8cdd6; }
+  .ptc-scores td.bar i, .ptc-key i { display: block; height: calc(9px * var(--ptc-scale, 1)); border-radius: 3px; background: #c8cdd6; }
   .ptc-scores td.num { text-align: right; font-weight: 700; width: 44px; }
   .ptc-scores th { background: none; text-align: left; font-size: 9px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: #8a93a3; padding: 0 4px 3px; border-bottom: 1px solid #dfe3ea; }
   .ptc-scores td.beh { width: 92px; color: #5d6675; font-size: 10px; }
@@ -172,13 +172,13 @@
   .tr-sum { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; } .tr-scale td { text-align: center; }
   .tr-sign { margin: 10px 0 0 55%; text-align: center; } .tr-sign img { height: 17mm; display: block; margin: 0 auto -2px; } .tr-date { font: 11pt "Times New Roman", serif; margin-top: -4mm; }
   .tr-foot { text-align: center; margin-top: 8mm; font-size: 8pt; } .tr-foot b { font: 700 11pt "Times New Roman", serif; display: block; }
-  .ptc-key { display: flex; gap: 12px; font-size: 9.5px; color: #5d6675; margin: 5px 0 2px; }
+  .ptc-key { display: flex; gap: 12px; font-size: calc(9.5px * var(--ptc-scale, 1)); color: #5d6675; margin: calc(5px * var(--ptc-scale, 1)) 0 calc(2px * var(--ptc-scale, 1)); }
   .ptc-key span { display: flex; align-items: center; gap: 4px; } .ptc-key i { width: 14px; }
-  .ptc-q { font-size: 11.5px; } .ptc-q.concern b { color: #b3261e; }
-  .ptc-notes { border: 1px solid #c8cdd6; border-radius: 6px; padding: 6px 8px; display: flex; flex-direction: column; }
+  .ptc-q { font-size: calc(11.5px * var(--ptc-scale, 1)); } .ptc-q.concern b { color: #b3261e; }
+  .ptc-notes { border: 1px solid #c8cdd6; border-radius: 6px; padding: calc(6px * var(--ptc-scale, 1)) calc(8px * var(--ptc-scale, 1)); display: flex; flex-direction: column; }
   .ptc-notes h4 { margin-top: 0; }
-  .ptc-notes .lines { flex: 1; background-image: linear-gradient(to bottom, transparent 27px, #dfe3e9 27px); background-size: 100% 28px; }
-  .ptc-foot { display: flex; justify-content: space-between; border-top: 1px solid #c8cdd6; margin-top: 8px; padding-top: 4px; font-size: 9px; color: #5d6675; letter-spacing: .04em; }
+  .ptc-notes .lines { flex: 1; background-image: linear-gradient(to bottom, transparent calc(27px * var(--ptc-scale, 1)), #dfe3e9 calc(27px * var(--ptc-scale, 1))); background-size: 100% calc(28px * var(--ptc-scale, 1)); }
+  .ptc-foot { display: flex; justify-content: space-between; border-top: 1px solid #c8cdd6; margin-top: calc(8px * var(--ptc-scale, 1)); padding-top: calc(4px * var(--ptc-scale, 1)); font-size: calc(9px * var(--ptc-scale, 1)); color: #5d6675; letter-spacing: .04em; }
   @media (max-width: 860px) { .ptc-page { width: 100%; min-height: 0; } .ptc-body { grid-template-columns: 1fr; } .ptc-notes { min-height: 120px; } }
   @media print {
     @page { size: A4 portrait; margin: 0; }
@@ -192,6 +192,7 @@
     .ptc-wrap { display: block; }
     .ptc-page { box-shadow: none; width: 210mm; height: 297mm; min-height: 0; overflow: hidden; break-after: page; }
     .ptc-page:last-child { break-after: auto; }
+    .ptc-page.ptc-flow { height: auto; min-height: 297mm; overflow: visible; } /* last resort: spill to a 2nd page, never silently cut words */
     .tr-page { box-shadow: none; width: 210mm; height: 297mm; min-height: 0; overflow: hidden; }
     .tr-page, .tr-page * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     .ptc-page, .ptc-page * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -217,5 +218,36 @@
 <script src="config.js"></script>
 <script src="app.js"></script>
 <script src="pde.js"></script>
+<script>
+// PTC print fit — same idea as the Report Card app's page scaling: when a sheet's
+// content is too tall for one A4 page, shrink it in steps (down to 68%) so nothing
+// is cut off. If it still does not fit, the sheet flows onto a second page instead
+// of silently losing a teacher's words. Runs only while printing; screen is unchanged.
+(function () {
+  function fitPtcPages() {
+    document.querySelectorAll(".ptc-page").forEach(function (p) {
+      p.style.height = "297mm";
+      p.style.overflow = "hidden";
+      var s = 1;
+      p.style.setProperty("--ptc-scale", "1");
+      while (s > 0.68 && p.scrollHeight > p.clientHeight + 2) {
+        s = Math.max(0.68, s - 0.04);
+        p.style.setProperty("--ptc-scale", s.toFixed(2));
+      }
+      p.classList.toggle("ptc-flow", p.scrollHeight > p.clientHeight + 2);
+    });
+  }
+  function resetPtcPages() {
+    document.querySelectorAll(".ptc-page").forEach(function (p) {
+      p.style.removeProperty("--ptc-scale");
+      p.style.removeProperty("height");
+      p.style.removeProperty("overflow");
+      p.classList.remove("ptc-flow");
+    });
+  }
+  window.addEventListener("beforeprint", fitPtcPages);
+  window.addEventListener("afterprint", resetPtcPages);
+})();
+</script>
 </body>
 </html>
