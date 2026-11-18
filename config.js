@@ -47,6 +47,7 @@ window.APP_CONFIG = {
   semesters: ["Fall", "Spring"],
   // Midterm = marks + remarks for the PTC sheets (not official). Final = the report card.
   // Each period keeps its own marks, so midterm entries are never overwritten by finals.
+  // Teachers carry their classes into the new period with one click on My classes (no re-adding students).
   period: "Midterm",
   periods: ["Midterm", "Final"],
 
