@@ -1,6 +1,14 @@
-// WZFS certificates: one A4 page per award, in the library's house style, filled from the portal's Certificates tab.
+// WZFS certificates: one A4 page per award, in the designer's v2 house style (Nov 2026 preset),
+// filled from the portal's Certificates tab.
 // The portal hands the list over in localStorage (wzfs_cert_handoff_v1). The librarian's corrections are kept in
 // this browser only (wzfs_cert_edits_v1) so a refresh doesn't lose them; nothing is written back to SharePoint.
+//
+// Tiers (from wzfs-certificate-style-preset):
+//   T1 Academic     — medallion (star=Achievement, trophy=Distinction, medal=Outstanding Student,
+//                     book=Teacher Award, globe=Participation); dark-gold award title
+//   T2 Recognition  — no medallion; navy title; placement as a metallic pill (1st gold, 2nd silver, 3rd bronze)
+//   T3 Values       — T2 layout in green (Green Cards, Core Values, PDE)
+//   T4 Graduation   — landscape; student name in Arizonia script; kicker above the title
 (function () {
   const $ = (s) => document.querySelector(s);
   const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -27,23 +35,41 @@
     return { title: t, level };
   };
   const nameHtml = (n) => { const m = String(n || "").match(/^(.*?)\s*(\(.+\))\s*$/); return m ? `${esc(m[1])} <span class="called">${esc(m[2])}</span>` : esc(n); };
-  const nameSize = (n, big) => { const l = String(n || "").length; return big ? (l > 34 ? 24 : l > 26 ? 28 : 32) : (l > 34 ? 17 : 22); };
-  const awardSize = (s) => { const l = String(s || "").length; return l > 40 ? 20 : l > 26 ? 23 : 27; };
-  const chev = `<svg class="chev %C" viewBox="0 0 60 100" aria-hidden="true"><polygon points="60,0 20,50 60,100 44,100 4,50 44,0" fill="var(--chev)"/><polygon points="60,14 32,50 60,86 60,72 44,50 60,28" fill="var(--chev2)"/></svg>`;
-  const tri = `<svg class="tri" style="top:0;left:0;width:210mm;height:297mm" viewBox="0 0 210 297" aria-hidden="true">
-    <polygon points="0,0 92,0 80,22 0,22" fill="#1F6B3A"/><polygon points="150,190 210,160 210,297 120,297" fill="var(--green)"/><polygon points="168,215 210,195 210,297 150,297" fill="#1F6B3A"/></svg>`;
-  const waves = `<svg style="position:absolute;inset:0;width:297mm;height:210mm" viewBox="0 0 297 210" aria-hidden="true">
-    <path d="M0,0 H297 V8 C230,20 120,0 0,14 Z" fill="var(--navy)"/><path d="M0,14 C120,0 230,20 297,8" fill="none" stroke="var(--gold)" stroke-width=".8"/>
-    <path d="M0,18 C110,5 230,24 297,13" fill="none" stroke="#C9D6EE" stroke-width="1.6"/>
-    <path d="M0,210 H297 V198 C220,190 110,208 0,194 Z" fill="var(--navy)"/><path d="M0,194 C110,208 220,190 297,198" fill="none" stroke="var(--gold)" stroke-width=".8"/>
-    <path d="M0,190 C110,203 220,185 297,193" fill="none" stroke="#C9D6EE" stroke-width="1.6"/>
-    <path d="M12,32 v-8 h8 M285,32 v-8 h-8 M12,176 v8 h8 M285,176 v8 h-8" fill="none" stroke="var(--gold)" stroke-width=".8"/></svg>`;
-  const orn = `<svg class="orn" viewBox="0 0 128 4" aria-hidden="true"><line x1="0" y1="2" x2="56" y2="2" stroke="var(--gold)" stroke-width=".6"/><line x1="72" y1="2" x2="128" y2="2" stroke="var(--gold)" stroke-width=".6"/>
-    <polygon points="64,0 67,2 64,4 61,2" fill="var(--gold)"/><circle cx="58.5" cy="2" r=".8" fill="var(--gold)"/><circle cx="69.5" cy="2" r=".8" fill="var(--gold)"/></svg>`;
+  const nameSize = (n, big) => { const l = String(n || "").length; return big ? (l > 34 ? 21 : l > 26 ? 25 : 29) : (l > 34 ? 17 : 22); };
+  const titleSize = (s) => { const l = String(s || "").length; return l > 40 ? 15 : l > 26 ? 18 : 21; };
+
+  // Placement → metallic pill (preset: 1st/Champion=gold, 2nd=silver, 3rd=bronze, platinum=#D9DADE).
+  const pillFor = (lvl) => {
+    const s = String(lvl || "").toLowerCase();
+    if (/platinum/.test(s)) return "platinum";
+    if (/1st|champion|first|\bgold/.test(s)) return "gold";
+    if (/2nd|second|silver/.test(s)) return "silver";
+    if (/3rd|third|bronze/.test(s)) return "bronze";
+    return null;
+  };
+
+  // Tier-1 medallion icons (inline SVG, fill inherits from CSS).
+  const ICONS = {
+    star: '<svg viewBox="0 0 24 24"><path d="M12 2l2.9 6.3 6.9.8-5.1 4.7 1.4 6.8-6.1-3.4-6.1 3.4 1.4-6.8L2.2 9.1l6.9-.8z"/></svg>',
+    trophy: '<svg viewBox="0 0 24 24"><path d="M6 3h12v2h3v2c0 2.8-2 5-4.7 5.4A6 6 0 0 1 13 15.9V18h3v2H8v-2h3v-2.1a6 6 0 0 1-3.3-3.5C5 11.9 3 9.8 3 7V5h3V3zM5 7c0 1.4.8 2.7 2 3.3A9 9 0 0 1 7 7H5zm14 0h-2a9 9 0 0 1-.1 3.3c1.3-.6 2.1-1.9 2.1-3.3V7z"/></svg>',
+    medal: '<svg viewBox="0 0 24 24"><path fill-rule="evenodd" d="M7.5 2h3.2v5.2a5.6 5.6 0 0 0-3.7 1.9L7.5 2zm9 0h-3.2v5.2a5.6 5.6 0 0 1 3.7 1.9L16.5 2zM12 8.5a5.5 5.5 0 1 1 0 11 5.5 5.5 0 0 1 0-11zm0 1.6a3.9 3.9 0 1 0 0 7.8 3.9 3.9 0 0 0 0-7.8z"/></svg>',
+    book: '<svg viewBox="0 0 24 24"><path d="M12 5C10.5 3.8 8.3 3 6 3 4.8 3 3.6 3.2 2.5 3.5v13C3.6 16.2 4.8 16 6 16c2.3 0 4.5.8 6 2 1.5-1.2 3.7-2 6-2 1.2 0 2.4.2 3.5.5v-13C20.4 3.2 19.2 3 18 3c-2.3 0-4.5.8-6 2zm0 2.2v9.6c-1.3-1-3.2-1.8-5-1.8-1 0-2 .1-2.9.4V6.2c.9-.3 1.9-.4 2.9-.4 1.8 0 3.7.8 5 1.4z"/></svg>',
+    globe: '<svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm7.9 9h-2.9a15 15 0 0 0-1.2-5A8 8 0 0 1 19.9 11zM12 4.1c.9 1.2 1.7 3.1 1.9 6.9h-3.8c.2-3.8 1-5.7 1.9-6.9zM8.2 6a15 15 0 0 0-1.2 5H4.1A8 8 0 0 1 8.2 6zM4.1 13h2.9c.2 2.2.6 3.9 1.2 5a8 8 0 0 1-4.1-5zm5.9 0h3.8c-.2 3.8-1 5.7-1.9 6.9-.9-1.2-1.7-3.1-1.9-6.9zm5.8 5a15 15 0 0 0 1.2-5h2.9a8 8 0 0 1-4.1 5z"/></svg>',
+  };
+
+  const frame = `<div class="frame-o"></div><div class="frame-i"></div><div class="dia tl"></div><div class="dia tr"></div><div class="dia bl"></div><div class="dia br"></div>`;
+  const head = `<div class="head"><img src="cert/wzfs-logo.png" alt=""><div class="school">Weihai Zhongshi Foreign School</div><div class="city">Weihai City, Shandong, China</div></div>`;
+  const rule = (cls, color) => `<svg class="${cls}" viewBox="0 0 128 6" aria-hidden="true"><line x1="0" y1="3" x2="54" y2="3" stroke="${color}" stroke-width=".8"/><line x1="74" y1="3" x2="128" y2="3" stroke="${color}" stroke-width=".8"/><polygon points="64,0 67,3 64,6 61,3" fill="${color}"/><circle cx="57.5" cy="3" r=".9" fill="${color}"/><circle cx="70.5" cy="3" r=".9" fill="${color}"/></svg>`;
   const signs = (data.signatories || []).map((s) => `<div class="sign"><div class="sig">${s.sig ? `<img src="${esc(s.sig)}" alt="">` : ""}</div>
-    <div class="who">${esc(s.name)}</div><div class="role">${esc(s.title)}</div></div>`).join("");
+    <div class="sigline"></div><div class="who">${esc(s.name)}</div><div class="role">${esc(s.title)}</div></div>`);
+  const signsRow = `<div class="signs">${signs[0] || ""}<div class="wasc"><div class="cap">Accredited by</div><img src="cert/wasc-logo.png" alt="WASC"><div class="cap">WASC</div></div>${signs[1] || ""}</div>`;
   // An editable text block; the librarian's correction (if any) replaces the generated text.
   const ed = (id, field, cls, html, style = "") => { const k = `${id}|${field}`; return `<div class="${cls}${edits[k] != null ? " edited" : ""}" contenteditable data-k="${esc(k)}" style="${style}">${edits[k] != null ? edits[k] : html}</div>`; };
+  const levelHtml = (it, level) => {
+    if (!level) return "";
+    const p = pillFor(level);
+    return p ? ed(it.id, "level", `pill ${p}`, esc(level)) : ed(it.id, "level", "level", esc(level));
+  };
 
   const page = (it, conferredHtml) => {
     const base = String(it.award || "").trim(), a = splitAward(base), t = tplFor(it, base);
@@ -51,66 +77,56 @@
     const level = a.level, typeWord = t.type || (it.type || "").replace(/^Certificate of\s*/i, "") || "Recognition";
     const after = ((t.afterByLevel || {})[level] || t.after || "").replace("{level}", level);
     const term = `${esc(opts.semester)} Semester, School Year <span style="white-space:nowrap">${esc(opts.year)}</span>.`;
+
+    // ── Tier 4: landscape graduation awards ─────────────────────────────
     if (t.theme === "prestige") {
-      // Its own defaults instead of the portrait "is awarded to … for".
-      const t = Object.assign({ intro: "This certificate hereby recognizes that" }, T[it.category] || {}, T[base] || {});
-      // Landscape graduation awards: "The Award of the Chairman of the Board (Servant Leadership)" → kicker + title + quality.
-      const m = !t.kicker && title.match(/^The Award of (.+)$/i);
-      const kicker = t.kicker || (m ? "The Award of" : ""), big = t.title || (m ? m[1] : title);
-      const lead = (level ? (t.lead || "through sustained demonstration of exemplary “{level}” is the worthy recipient of") : "is the worthy recipient of").replace("{level}", esc(level));
-      return `<section class="cert land">${waves}
-      <div class="head" style="top:17mm"><img src="cert/wzfs-logo.png" alt="" style="width:22mm;height:22mm"><div><div class="school">Weihai Zhongshi Foreign School</div><div class="city">Weihai City, Shandong China</div></div></div>
-      <div class="main" style="top:42mm;bottom:62mm;left:30mm;right:30mm;gap:2.4mm">
-        ${ed(it.id, "intro", "intro", esc(t.intro || "This certificate hereby recognizes that"))}
+      const t4 = Object.assign({ intro: "This certificate hereby recognizes that" }, T[it.category] || {}, T[base] || {});
+      const m = !t4.kicker && title.match(/^The Award of (.+)$/i);
+      const kicker = t4.kicker || (m ? "The Award of" : ""), big = t4.title || (m ? m[1] : title);
+      const lead = (level ? (t4.lead || "through sustained demonstration of exemplary “{level}” is the worthy recipient of") : "is the worthy recipient of").replace("{level}", esc(level));
+      return `<section class="cert land t4">${frame}${head}
+      <div class="main"><img class="wm" src="cert/crest-mark.png" alt="">
+        ${ed(it.id, "intro", "intro", esc(t4.intro))}
         ${ed(it.id, "name", "script", esc(it.name))}
-        ${ed(it.id, "lead", "lead", lead, "max-width:170mm")}
+        ${rule("nrule", "var(--gold)")}
+        ${ed(it.id, "lead", "lead", lead, "max-width:180mm")}
         ${kicker ? ed(it.id, "kicker", "kicker", esc(kicker)) : ""}
-        ${ed(it.id, "award", "ptitle", esc(big), `font-size:${big.length > 34 ? 22 : big.length > 24 ? 27 : 31}pt`)}
-        <div class="term" style="font-family:'Segoe UI',Arial,sans-serif;font-size:12pt">for the School Year <span style="white-space:nowrap">${esc(opts.year)}</span>.</div>
-        <div class="conferred" style="font-family:'Segoe UI',Arial,sans-serif;font-size:12pt;margin-top:-2mm">${conferredHtml}</div>
+        ${ed(it.id, "award", "ptitle", esc(big), `font-size:${big.length > 34 ? 17 : big.length > 24 ? 20 : 22.5}pt`)}
+        <div class="term">for the School Year <span style="white-space:nowrap">${esc(opts.year)}</span>.</div>
+        <div class="conferred">${conferredHtml}</div>
       </div>
-      <div class="signs" style="top:150mm;left:50mm;right:95mm">${signs}</div>
-      <div class="accr" style="top:152mm;left:auto;right:24mm">Accredited by:<img src="cert/wasc-logo.png" alt="WASC"></div>
+      ${signsRow}
     </section>`;
     }
-    if (t.theme === "green") return `<section class="cert green">${tri}
-      <div class="head" style="justify-content:flex-start;left:8mm;top:4mm;color:#fff"><img src="cert/wzfs-logo.png" alt="" style="width:16mm;height:16mm;background:#fff;border-radius:50%">
-        <div class="school" style="color:#fff;font-size:15pt;text-align:left">Weihai Zhongshi<br>Foreign School</div></div>
-      <div style="position:absolute;top:8mm;right:12mm;font-family:Georgia,serif;font-size:11pt;color:var(--green-dark)">Weihai City, Shandong Province, China</div>
-      <div class="main">
+
+    // ── Tiers 1–3 (portrait) ────────────────────────────────────────────
+    // Tier: T3 = values (green); T1 = academic medallion; everything else = T2 recognition.
+    const T3 = t.theme === "green" || ["Green Cards", "Core Values", "PDE"].includes(it.category);
+    const medalFor = { Achievement: "star", Distinction: "trophy", "Teacher Award": "book", Participation: "globe" };
+    let medal = T3 ? null : medalFor[typeWord] || null;
+    if (!T3 && it.category === "Outstanding Student") medal = "medal";
+    const tier = T3 ? "t3" : medal ? "t1" : "t2";
+    const titleCls = medal === "book" ? "title navy" : "title";
+    const accent = T3 ? "var(--greenDark)" : "var(--gold)";
+    const medalHtml = medal ? `<div class="medal ${medal === "globe" ? "navy" : medal === "book" ? "book" : ""}">${ICONS[medal]}</div>` : "";
+
+    return `<section class="cert ${tier}">${frame}${head}
+      <div class="main"><img class="wm" src="cert/crest-mark.png" alt="">
         <div class="certword">CERTIFICATE</div>
-        <div class="banner">of ${esc(typeWord)}</div>
-        ${level ? ed(it.id, "level", "level", `-${esc(level)}-`) : ""}
-        <div class="gap"></div>
-        ${ed(it.id, "intro", "intro", esc(t.intro || "is awarded to"))}
-        ${ed(it.id, "name", "name", nameHtml(it.name), `font-size:${nameSize(it.name)}pt`)}
-        ${ed(it.id, "after", "after", `${esc(after)} for the ${esc(opts.semester)} Semester of School Year <span style="white-space:nowrap">${esc(opts.year)}</span>.`, "max-width:140mm")}
-        <div class="conferred">${conferredHtml.replace("Conferred", "Given")}</div>
-      </div>
-      <div class="signs">${signs}</div>
-      <div class="accr" style="left:auto;right:10mm;top:262mm;color:#fff">Accredited<img src="cert/wasc-logo.png" alt="WASC"></div>
-    </section>`;
-    return `<section class="cert">${chev.replace("%C", "tr")}${chev.replace("%C", "bl")}
-      <div class="head"><img src="cert/wzfs-logo.png" alt=""><div><div class="school">Weihai Zhongshi Foreign School</div><div class="city">Weihai City, Shandong China</div></div></div>
-      <div class="main">
-        <div class="this">This</div>
-        ${orn}
-        <div class="certword">CERTIFICATE</div>
-        <div class="of">of</div>
-        <div class="typeword">${esc(typeWord)}</div>
-        ${orn}
+        <div class="ofline">of ${esc(typeWord)}</div>
+        ${medalHtml}
         ${ed(it.id, "intro", "intro", esc(t.intro || "is awarded to"))}
         ${ed(it.id, "name", "name", nameHtml(it.name), `font-size:${nameSize(it.name, true)}pt`)}
+        ${rule("nrule", accent)}
         ${t.lead === "" ? "" : ed(it.id, "lead", "lead", esc(t.lead || "for"), "max-width:150mm")}
-        ${ed(it.id, "award", `award${t.awardStyle === "blue" ? " blue" : ""}`, esc(title), `font-size:${awardSize(title)}pt`)}
-        ${level ? ed(it.id, "level", `level${t.levelStyle === "green" ? " green" : ""}`, t.levelStyle === "green" ? esc(level) : `-${esc(level)}-`) : ""}
+        ${ed(it.id, "award", titleCls, esc(title), `font-size:${titleSize(title)}pt`)}
+        ${levelHtml(it, level)}
         ${after ? ed(it.id, "after", "after", esc(after), "max-width:150mm") : ""}
         <div class="gap"></div>
         <div class="term">${term}</div>
         <div class="conferred">${conferredHtml}</div>
       </div>
-      <div class="signs">${signs}</div>
-      <div class="accr">Accredited by:<img src="cert/wasc-logo.png" alt="WASC"></div>
+      ${signsRow}
     </section>`;
   };
 
