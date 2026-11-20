@@ -238,7 +238,7 @@ const isReportTeam = () => isAdmin() || (P().reportTeam || []).map(lc).includes(
 const headGrades = () => (P().divisionHeads || {})[S.me] || [];
 // Department heads (config departmentHeads): read-only view of their subject across the upper school.
 const deptCfg = () => (P().departmentHeads || {})[S.me];
-const isHodOnly = () => Boolean(deptCfg()) && !realAdmin();
+const isHodOnly = () => Boolean(deptCfg()) && (!realAdmin() || Boolean(S.viewAs));
 const usePreviewMode = () => localStorage.getItem("pde_preview_as_student") === "true";
 const deptMatch = (d, subject) => new RegExp(d.match, "i").test(subject || "");
 const viewGrades = () => isLeader() ? P().grades : P().grades.filter((g) => advisorGrades().includes(g) || headGrades().includes(g));
