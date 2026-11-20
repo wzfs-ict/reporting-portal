@@ -238,6 +238,8 @@ const isReportTeam = () => isAdmin() || (P().reportTeam || []).map(lc).includes(
 const headGrades = () => (P().divisionHeads || {})[S.me] || [];
 // Department heads (config departmentHeads): read-only view of their subject across the upper school.
 const deptCfg = () => (P().departmentHeads || {})[S.me];
+const isHodOnly = () => Boolean(deptCfg()) && !realAdmin();
+const usePreviewMode = () => localStorage.getItem("pde_preview_as_student") === "true";
 const deptMatch = (d, subject) => new RegExp(d.match, "i").test(subject || "");
 const viewGrades = () => isLeader() ? P().grades : P().grades.filter((g) => advisorGrades().includes(g) || headGrades().includes(g));
 // "View as" (admins only): preview the app as someone else. Read-only; graph() refuses writes.
@@ -257,7 +259,7 @@ const advisorName = (g) => (P().advisors[g] && P().advisors[g].name) || "";
 // ── Shell ────────────────────────────────────────────────────
 function tabsFor() {
   if (S.viewAs === "parent") return [["parent", "Parent view"]];
-  if (S.viewAs === "student" || (S.studentMode && !S.viewAs)) return [["mygoals", "My goals"]];
+  if (S.viewAs === "student" || (S.studentMode && !S.viewAs) || (isHodOnly() && usePreviewMode())) return [["mygoals", "My goals"]];
   // Admin team members who don't teach (Ryan, Peter, Keating…) only need report cards.
   const teaches = isAdmin() || (P().staff || []).map(lc).includes(S.me) || advisorGrades().length > 0;
   if (isLibrarian() && !teaches && !isReportTeam()) return [["certs", "Certificates"], ["help", "Help"]];
@@ -280,7 +282,9 @@ function renderShell() {
   $("#footer").textContent = `Mr Glen Joshua (${P().semester} ${P().academicYear.slice(0, 4)}) · ${C.version} · Uses Zhongshi Microsoft SharePoint as database`;
   if (!account) { $("#who").textContent = ""; $("#authBtn").innerHTML = ""; $("#tabs").innerHTML = ""; return; }
   $("#who").textContent = account.name || S.me;
-  $("#authBtn").innerHTML = `${realAdmin() && !S.loadErr ? viewAsMenu() : ""}<button class="btn small" id="signOut">Sign out</button>`;
+  const hodToggleHtml = isHodOnly() && !S.loadErr ? previewAsStudentToggleHtml() : "";
+  $("#authBtn").innerHTML = `${realAdmin() && !S.loadErr ? viewAsMenu() : ""}${hodToggleHtml}<button class="btn small" id="signOut">Sign out</button>`;
+  bindPreviewAsStudentToggle();
   $("#signOut").onclick = () => pca.logoutRedirect({ account });
   const va = $("#viewAs");
   if (va) va.onchange = () => {
@@ -294,6 +298,21 @@ function renderShell() {
   $$("#tabs button").forEach((b) => (b.onclick = () => go(b.dataset.tab)));
 }
 function go(tab) { S.tab = tab; render(); window.scrollTo(0, 0); }
+function previewAsStudentToggleHtml() {
+  const active = usePreviewMode();
+  return `<button class="btn small ${active ? "primary" : ""}" id="hodPreviewToggle" style="margin-right:6px" title="Preview as Bobae (My goals)">${active ? "Exit Student View" : "Preview as Student"}</button>`;
+}
+function bindPreviewAsStudentToggle() {
+  const btn = $("#hodPreviewToggle");
+  if (!btn) return;
+  btn.onclick = () => {
+    const next = !usePreviewMode();
+    localStorage.setItem("pde_preview_as_student", String(next));
+    window.dispatchEvent(new CustomEvent("previewModeChange", { detail: { isPreview: next } }));
+    S.tab = tabsFor()[0][0];
+    render();
+  };
+}
 function viewAsMenu() {
   const p = P(), opt = (e, label) => `<option value="${esc(e)}" ${S.viewAs === e ? "selected" : ""}>${esc(label || nameOf(e))}</option>`;
   const advisorOpts = p.grades.flatMap((g) => advisorEmails(g).map((e, i) => opt(e, `${g} ${i ? "co-advisor" : "advisor"}: ${nameOf(e)}`)));
@@ -318,8 +337,25 @@ function render() {
   if (S.loadErr) return errorScreen(main);
   const views = { review: viewReview, certs: viewCerts, classes: viewClasses, newclass: viewNewClass, entry: viewEntry, advisor: viewAdvisor, dept: viewDept, ptc: viewPtc, awards: viewAwards, export: viewExport, transcript: viewTranscript, setup: viewSetup, pde: viewPde, help: viewHelp, parent: viewParent, mygoals: viewMyGoals };
   if (!tabsFor().some(([k]) => k === ({ newclass: "classes", entry: S.back, ptc: "advisor" }[S.tab] || S.tab))) S.tab = tabsFor()[0][0];
-  (views[S.tab] || viewClasses)(main);
-  if (S.viewAs) main.insertAdjacentHTML("afterbegin", notice("warn", `<b>Preview:</b> you're seeing the app as <b>${esc(S.meName)}</b>. Read-only: nothing is saved. Their real access is set in SharePoint, so a few things may look slightly different for them. <a href="#" id="endPreview">Back to myself</a>`)
+  const hodPreviewActive = isHodOnly() && usePreviewMode();
+  if (hodPreviewActive) {
+    if (!S.viewAs) S.viewAs = "student";
+    viewMyGoals(main);
+    main.insertAdjacentHTML("afterbegin", notice("warn", `<b>Preview:</b> you are previewing as a bobae (student view). <a href="#" id="endHodPreview">Exit preview</a>`));
+    const ehp = $("#endHodPreview");
+    if (ehp) ehp.onclick = (e) => {
+      e.preventDefault();
+      localStorage.setItem("pde_preview_as_student", "false");
+      window.dispatchEvent(new CustomEvent("previewModeChange", { detail: { isPreview: false } }));
+      if (S.viewAs === "student") S.viewAs = "";
+      S.tab = tabsFor()[0][0];
+      render();
+    };
+  } else {
+    if (isHodOnly() && S.viewAs === "student") S.viewAs = "";
+    (views[S.tab] || viewClasses)(main);
+  }
+  if (S.viewAs && !hodPreviewActive) main.insertAdjacentHTML("afterbegin", notice("warn", `<b>Preview:</b> you're seeing the app as <b>${esc(S.meName)}</b>. Read-only: nothing is saved. Their real access is set in SharePoint, so a few things may look slightly different for them. <a href="#" id="endPreview">Back to myself</a>`)
 );
   const ep = $("#endPreview"); if (ep) ep.onclick = (e) => { e.preventDefault(); const v = $("#viewAs"); v.value = ""; v.onchange(); };
 }
@@ -2453,6 +2489,17 @@ async function start() {
   }
   render();
 }
+window.usePreviewMode = usePreviewMode;
+window.addEventListener("storage", (e) => {
+  if (e.key === "pde_preview_as_student") {
+    window.dispatchEvent(new CustomEvent("previewModeChange", { detail: { isPreview: e.newValue === "true" } }));
+    if (account && isHodOnly()) { S.tab = tabsFor()[0][0]; render(); }
+  }
+});
+window.addEventListener("previewModeChange", () => {
+  if (account && isHodOnly()) { S.tab = tabsFor()[0][0]; render(); }
+});
+
 if (C.clientId.startsWith("PASTE")) {
   document.getElementById("main").innerHTML = `<div class="center"><h1>Almost ready</h1><p class="lede">Paste the Entra application (client) ID into <code>config.js</code>.</p></div>`;
 } else start();
